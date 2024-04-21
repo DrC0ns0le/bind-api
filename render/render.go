@@ -66,8 +66,8 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 			Name:    z.Name,
 			Records: RS,
 			SOA: SOA{
-				PrimaryNS:  "ns.placeholder.",
-				AdminEmail: "webmaster.",
+				PrimaryNS:  "ns.placeholder",
+				AdminEmail: "webmaster",
 				Serial:     int(time.Now().Unix()),
 				Refresh:    3600,
 				Retry:      600,

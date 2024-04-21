@@ -12,5 +12,5 @@ $ORIGIN {{.Name}}.
                               {{.SOA.Minimum}}                     ) ; minimum ttl
 
 {{range $records}}
-{{.Host}} {{.TTL}} {{.Type}} {{.Content}}
+{{- .Host}} {{.TTL}} {{.Type}} {{.Content}}
 {{end}}
