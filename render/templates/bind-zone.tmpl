@@ -1,0 +1,16 @@
+{{$soa := .SOA}}
+{{$records := .Records}}
+
+$ORIGIN {{.Origin}}.
+
+@                      {{.SOA.TTL}} SOA   {{.SOA.PrimaryNS}}. (
+                              {{.SOA.AdminEmail}}.     ; address of responsible party
+                              {{.SOA.Serial}}                 ; serial number
+                              {{.SOA.Refresh}}                       ; refresh period
+                              {{.SOA.Retry}}                        ; retry period
+                              {{.SOA.Expire}}                     ; expire time
+                              {{.SOA.Minimum}}                     ) ; minimum ttl
+
+{{range $records}}
+{{.Host}} {{.TTL}} {{.Type}} {{.Content}}
+{{end}}
