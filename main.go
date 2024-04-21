@@ -22,8 +22,8 @@ func main() {
 	mux.HandleFunc("DELETE /api/v1/zones/{zone_uuid}", DeleteZoneHandler)
 
 	//CRUD for records
-	mux.HandleFunc("GET /api/v1/zones/{zone_uuid}/records", GetRecordsHandler)
-	// mux.HandleFunc("POST /api/v1/zones/{zone_uuid}/records/{record_uuid}", zones.Records.getRecord)
+	mux.HandleFunc("GET /api/v1/zones/{zone_uuid}/records", GetZoneRecordsHandler)
+	mux.HandleFunc("POST /api/v1/zones/{zone_uuid}/records/{record_uuid}", GetRecordHandler)
 	mux.HandleFunc("POST /api/v1/zones/{zone_uuid}/records", CreateRecordHandler)
 	mux.HandleFunc("PUT /api/v1/zones/{zone_uuid}/records/{record_uuid}", UpdateRecordHandler)
 	mux.HandleFunc("PATCH /api/v1/zones/{zone_uuid}/records/{record_uuid}", UpdateRecordHandler)

@@ -175,7 +175,7 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(responseBody)
 }
 
-func GetRecordsHandler(w http.ResponseWriter, r *http.Request) {
+func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract zone UUID from URL
@@ -211,6 +211,55 @@ func GetRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	responseBody := responseBody{
 		Code:    0,
 		Message: "Records retrieved successfully",
+		Data:    R,
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(responseBody)
+}
+
+func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	// Extract record UUID from URL
+	zoneUUID := r.PathValue("zone_uuid")
+	recordUUID := r.PathValue("record_uuid")
+
+	// Find the zone by UUID and record by UUID
+	record, err := bd.Records.Select(recordUUID)
+
+	R := Record{
+		UUID:         record.UUID,
+		Type:         record.Type,
+		Host:         record.Host,
+		Content:      record.Content,
+		TTL:          record.TTL,
+		LastModified: record.LastModified,
+	}
+
+	if err != nil {
+		errorMsg := responseBody{
+			Code:    1,
+			Message: "Record not found",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
+	if record.ZoneUUID != zoneUUID {
+		errorMsg := responseBody{
+			Code:    2,
+			Message: "Record found, but zone does not match",
+			Data:    map[string]string{"zone_uuid": record.ZoneUUID, "record_uuid": recordUUID},
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
+	responseBody := responseBody{
+		Code:    0,
+		Message: "Record retrieved successfully",
 		Data:    R,
 	}
 	w.WriteHeader(http.StatusOK)
