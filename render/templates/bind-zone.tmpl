@@ -1,7 +1,7 @@
 {{$soa := .SOA}}
 {{$records := .Records}}
 
-$ORIGIN {{.Origin}}.
+$ORIGIN {{.Name}}.
 
 @                      {{.SOA.TTL}} SOA   {{.SOA.PrimaryNS}}. (
                               {{.SOA.AdminEmail}}.     ; address of responsible party

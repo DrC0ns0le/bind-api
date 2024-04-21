@@ -1,6 +1,12 @@
 package render
 
 import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"text/template"
 	"time"
 
 	"github.com/DrC0ns0le/bind-api/rdb"
@@ -30,7 +36,7 @@ type Zone struct {
 	SOA     SOA
 }
 
-func CreateZones(_bd *rdb.BindData) ([]Zone, error) {
+func createZones(_bd *rdb.BindData) ([]Zone, error) {
 	var ZS []Zone
 
 	zs, err := _bd.Zones.Get()
@@ -75,5 +81,49 @@ func CreateZones(_bd *rdb.BindData) ([]Zone, error) {
 	}
 
 	return ZS, nil
+}
 
+func renderZone(zone Zone) (string, error) {
+	_, filePath, _, _ := runtime.Caller(0)
+	templatePath := filepath.Dir(filePath) + "/templates/bind-zone.tmpl"
+	t, err := template.New("bind-zone.tmpl").ParseFiles(templatePath)
+	if err != nil {
+		return "", errors.New("Failed to parse template: " + err.Error())
+	}
+
+	outputDir := "output"
+	filename := fmt.Sprintf("%s-rendered_%d.conf", zone.Name, time.Now().Unix())
+	path, err := filepath.Abs(filepath.Join(outputDir, filename))
+
+	if err != nil {
+		return "", errors.New("Failed to create file path: " + err.Error())
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return "", errors.New("Failed to create output file: " + err.Error())
+	}
+	defer f.Close()
+
+	err = t.Execute(f, zone)
+	if err != nil {
+		return "", errors.New("Failed to render template: " + err.Error())
+	}
+
+	return path, nil
+}
+
+func RenderZonesTemplate(_bd *rdb.BindData) error {
+	zs, err := createZones(_bd)
+	if err != nil {
+		return err
+	}
+
+	for _, z := range zs {
+		_, err := renderZone(z)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
