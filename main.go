@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/DrC0ns0le/bind-api/handlers"
+	"github.com/DrC0ns0le/bind-api/middleware"
 	"github.com/DrC0ns0le/bind-api/rdb"
 )
 
@@ -18,28 +19,33 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	middlewareChain := func(handler func(http.ResponseWriter, *http.Request)) http.Handler {
+		return middleware.LoggerMiddleware(middleware.CorsHandler(http.HandlerFunc(handler)))
+	}
+
 	// CRUD for zones
-	mux.HandleFunc("GET /api/v1/zones/", handlers.GetZonesHandler)
-	mux.HandleFunc("POST /api/v1/zones/", handlers.CreateZoneHandler)
-	mux.HandleFunc("DELETE /api/v1/zones/{zone_uuid}", handlers.DeleteZoneHandler)
+	mux.Handle("GET /api/v1/zones", middlewareChain(handlers.GetZonesHandler))
+	mux.Handle("POST /api/v1/zones", middlewareChain(handlers.CreateZoneHandler))
+	// mux.Handle("OPTIONS /api/v1/zones", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+	mux.Handle("DELETE /api/v1/zones/{zone_uuid}", middlewareChain(handlers.DeleteZoneHandler))
 
 	//CRUD for records
-	mux.HandleFunc("GET /api/v1/zones/{zone_uuid}/records", handlers.GetZoneRecordsHandler)
-	mux.HandleFunc("POST /api/v1/zones/{zone_uuid}/records/{record_uuid}", handlers.GetRecordHandler)
-	mux.HandleFunc("POST /api/v1/zones/{zone_uuid}/records", handlers.CreateRecordHandler)
-	mux.HandleFunc("PUT /api/v1/zones/{zone_uuid}/records/{record_uuid}", handlers.UpdateRecordHandler)
-	mux.HandleFunc("PATCH /api/v1/zones/{zone_uuid}/records/{record_uuid}", handlers.UpdateRecordHandler)
-	mux.HandleFunc("DELETE /api/v1/zones/{zone_uuid}/records/{record_uuid}", handlers.DeleteRecordHandler)
+	mux.Handle("GET /api/v1/zones/{zone_uuid}/records", middlewareChain(handlers.GetZoneRecordsHandler))
+	mux.Handle("POST /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.GetRecordHandler))
+	mux.Handle("POST /api/v1/zones/{zone_uuid}/records", middlewareChain(handlers.CreateRecordHandler))
+	mux.Handle("PUT /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.UpdateRecordHandler))
+	mux.Handle("PATCH /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.UpdateRecordHandler))
+	mux.Handle("DELETE /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.DeleteRecordHandler))
 
 	// Render Zones
-	mux.HandleFunc("/api/v1/render", handlers.RenderZonesHandler)
+	mux.Handle("/api/v1/render", middlewareChain(handlers.RenderZonesHandler))
 
 	// Health check
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	})))
 
-	http.ListenAndServe(":8080", mux)
+	// http.ListenAndServe(":8080", mux)
 
 	const listenAddr = "0.0.0.0:8090"
 

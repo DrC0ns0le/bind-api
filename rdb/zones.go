@@ -2,7 +2,6 @@ package rdb
 
 import (
 	"database/sql"
-	"fmt"
 	"time"
 )
 
@@ -34,7 +33,6 @@ func (z *Zone) Get() ([]Zone, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(zone)
 		zones = append(zones, zone)
 	}
 
