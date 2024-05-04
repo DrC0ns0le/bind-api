@@ -11,14 +11,15 @@ import (
 )
 
 type Record struct {
-	ID           int    `json:"-"`
-	UUID         string `json:"uuid"`
-	Type         string `json:"type"`
-	Host         string `json:"host"`
-	Content      string `json:"content"`
-	TTL          int    `json:"ttl"`
-	LastModified int    `json:"last_modified"`
-	ZoneUUID     string `json:"-"`
+	ID         int    `json:"-"`
+	UUID       string `json:"uuid"`
+	Type       string `json:"type"`
+	Host       string `json:"host"`
+	Content    string `json:"content"`
+	TTL        int    `json:"ttl"`
+	ModifiedAt int    `json:"modified_at"`
+	ZoneUUID   string `json:"-"`
+	Staging    bool   `json:"staging"`
 }
 
 type Records []Record
@@ -49,12 +50,13 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, record := range records {
 		temp := Record{
-			UUID:         record.UUID,
-			Type:         record.Type,
-			Host:         record.Host,
-			Content:      record.Content,
-			TTL:          record.TTL,
-			LastModified: record.LastModified,
+			UUID:       record.UUID,
+			Type:       record.Type,
+			Host:       record.Host,
+			Content:    record.Content,
+			TTL:        record.TTL,
+			ModifiedAt: record.ModifiedAt,
+			Staging:    record.Staging,
 		}
 		R = append(R, temp)
 	}
@@ -78,12 +80,13 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 	record, err := bd.Records.Select(recordUUID)
 
 	R := Record{
-		UUID:         record.UUID,
-		Type:         record.Type,
-		Host:         record.Host,
-		Content:      record.Content,
-		TTL:          record.TTL,
-		LastModified: record.LastModified,
+		UUID:       record.UUID,
+		Type:       record.Type,
+		Host:       record.Host,
+		Content:    record.Content,
+		TTL:        record.TTL,
+		ModifiedAt: record.ModifiedAt,
+		Staging:    record.Staging,
 	}
 
 	if err != nil {
@@ -180,8 +183,8 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return requestData.TTL
 		}(),
-		LastModified: int(time.Now().Unix()),
-		ZoneUUID:     zoneUUID,
+		ModifiedAt: int(time.Now().Unix()),
+		ZoneUUID:   zoneUUID,
 	}
 
 	// Create the record
@@ -265,8 +268,8 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		record.TTL = requestData.TTL
 	}
 
-	// Update LastModified timestamp
-	record.LastModified = int(time.Now().Unix())
+	// Update ModifiedAt timestamp
+	record.ModifiedAt = int(time.Now().Unix())
 
 	// Update the record
 	err = bd.Records.Update(record)

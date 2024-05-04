@@ -11,10 +11,11 @@ import (
 )
 
 type Zone struct {
-	ID           int    `json:"-"`
-	UUID         string `json:"uuid"`
-	Name         string `json:"name"`
-	LastModified int    `json:"last_modified"`
+	ID         int    `json:"-"`
+	UUID       string `json:"uuid"`
+	Name       string `json:"name"`
+	ModifiedAt int    `json:"modified_at"`
+	Staging    bool   `json:"staging"`
 }
 
 type Zones []Zone
@@ -32,9 +33,10 @@ func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, zone := range zones {
 		temp := Zone{
-			UUID:         zone.UUID,
-			Name:         zone.Name,
-			LastModified: zone.LastModified,
+			UUID:       zone.UUID,
+			Name:       zone.Name,
+			ModifiedAt: zone.ModifiedAt,
+			Staging:    zone.Staging,
 		}
 		Z = append(Z, temp)
 	}
@@ -71,9 +73,9 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	uuid5 := uuid.NewSHA1(dnsNamespaceUUID, []byte(requestData.Name)).String()
 
 	newZone := rdb.Zone{
-		UUID:         uuid5,
-		Name:         requestData.Name,
-		LastModified: int(time.Now().Unix()),
+		UUID:       uuid5,
+		Name:       requestData.Name,
+		ModifiedAt: int(time.Now().Unix()),
 	}
 
 	// Create the zone
@@ -126,9 +128,9 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 		Code:    0,
 		Message: "Zone deleted successfully",
 		Data: Zone{
-			UUID:         zone.UUID,
-			Name:         zone.Name,
-			LastModified: zone.LastModified,
+			UUID:       zone.UUID,
+			Name:       zone.Name,
+			ModifiedAt: zone.ModifiedAt,
 		},
 	}
 
