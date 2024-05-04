@@ -50,7 +50,7 @@ func (r *Record) Get(zoneUUID string) ([]Record, error) {
 //
 // It returns a slice of Record and an error if any.
 func (r *Record) GetAll() ([]Record, error) {
-	rows, err := r.db.Query("SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE deleted_at IS NOT NULL;")
+	rows, err := r.db.Query("SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE deleted_at = 0;")
 	if err != nil {
 		return nil, err
 	}

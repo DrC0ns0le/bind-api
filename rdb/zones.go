@@ -2,6 +2,7 @@ package rdb
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -20,7 +21,7 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get() ([]Zone, error) {
-	rows, err := z.db.Query("SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones WHERE deleted_at != 0;")
+	rows, err := z.db.Query("SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones WHERE deleted_at = 0;")
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +34,7 @@ func (z *Zone) Get() ([]Zone, error) {
 		if err != nil {
 			return nil, err
 		}
+		fmt.Println(zone)
 		zones = append(zones, zone)
 	}
 
@@ -47,7 +49,7 @@ func (z *Zone) Get() ([]Zone, error) {
 // Returns:
 //   - error: An error if the insertion fails.
 func (z *Zone) Create(newZone Zone) error {
-	query := "INSERT INTO bind_dns.zones (uuid, name, modified_at, deleted_at, staging) VALUES ($1, $2, $3, NULL, TRUE)"
+	query := "INSERT INTO bind_dns.zones (uuid, name, modified_at, deleted_at, staging) VALUES ($1, $2, $3, 0, TRUE)"
 	stmt, err := z.db.Prepare(query)
 	if err != nil {
 		return err
