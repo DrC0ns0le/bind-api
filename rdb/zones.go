@@ -20,7 +20,7 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get() ([]Zone, error) {
-	rows, err := z.db.Query("SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones")
+	rows, err := z.db.Query("SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones WHERE deleted_at != 0;")
 	if err != nil {
 		return nil, err
 	}
