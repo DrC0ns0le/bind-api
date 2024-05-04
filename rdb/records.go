@@ -2,6 +2,7 @@ package rdb
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -170,4 +171,39 @@ func (z *Record) Select(recordUUID string) (Record, error) {
 		return record, err
 	}
 	return record, nil
+}
+
+// Commit commits the changes to the database.
+// Sets all records to staging = FALSE
+func (z *Record) CommitAll() error {
+	//Check for any rows to commit
+	query := "SELECT COUNT(*) FROM bind_dns.records WHERE staging = TRUE"
+	row := z.db.QueryRow(query)
+	var count int
+	err := row.Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+
+	// Apply changes
+	query = "UPDATE bind_dns.records SET staging = FALSE WHERE staging = TRUE"
+	result, err := z.db.Exec(query)
+	if err != nil {
+		return err
+	}
+
+	// Check for any rows affected
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected != int64(count) {
+		return fmt.Errorf("expected %d rows affected, got %d", count, rowsAffected)
+	}
+
+	return nil
+
 }

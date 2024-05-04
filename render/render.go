@@ -84,6 +84,7 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 }
 
 func renderZone(zone Zone) (string, error) {
+	// Parse template
 	_, filePath, _, _ := runtime.Caller(0)
 	templatePath := filepath.Dir(filePath) + "/templates/bind-zone.tmpl"
 	t, err := template.New("bind-zone.tmpl").ParseFiles(templatePath)
@@ -91,6 +92,7 @@ func renderZone(zone Zone) (string, error) {
 		return "", errors.New("Failed to parse template: " + err.Error())
 	}
 
+	// Render template
 	outputDir := "output"
 	filename := fmt.Sprintf("%s-rendered_%d.conf", zone.Name, time.Now().Unix())
 	path, err := filepath.Abs(filepath.Join(outputDir, filename))
@@ -99,12 +101,22 @@ func renderZone(zone Zone) (string, error) {
 		return "", errors.New("Failed to create file path: " + err.Error())
 	}
 
+	// Remove previous output file
+	if _, err := os.Stat(path); err == nil {
+		err = os.Remove(path)
+		if err != nil {
+			return "", errors.New("Failed to remove previous output file: " + err.Error())
+		}
+	}
+
+	// Create output file
 	f, err := os.Create(path)
 	if err != nil {
 		return "", errors.New("Failed to create output file: " + err.Error())
 	}
 	defer f.Close()
 
+	// Execute template
 	err = t.Execute(f, zone)
 	if err != nil {
 		return "", errors.New("Failed to render template: " + err.Error())
@@ -114,16 +126,26 @@ func renderZone(zone Zone) (string, error) {
 }
 
 func RenderZonesTemplate(_bd *rdb.BindData) error {
+
+	// Create all zones
 	zs, err := createZones(_bd)
 	if err != nil {
 		return err
 	}
 
+	// Render all zones
 	for _, z := range zs {
 		_, err := renderZone(z)
 		if err != nil {
 			return err
 		}
 	}
+
+	// Commit all changes
+	err = _bd.Records.CommitAll()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
