@@ -28,7 +28,7 @@ type Record struct {
 // - []Record: A slice of Record structs representing the retrieved records.
 // - error: An error if the retrieval fails.
 func (r *Record) Get(zoneUUID string) ([]Record, error) {
-	rows, err := r.db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.modified_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid = $1 AND r.deleted_at != 0;", zoneUUID)
+	rows, err := r.db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.modified_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid = $1 AND (r.deleted_at = 0 OR r.staging = TRUE)", zoneUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (r *Record) Get(zoneUUID string) ([]Record, error) {
 //
 // It returns a slice of Record and an error if any.
 func (r *Record) GetAll() ([]Record, error) {
-	rows, err := r.db.Query("SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE deleted_at = 0;")
+	rows, err := r.db.Query("SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE deleted_at = 0 OR staging = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (r *Record) Delete(uuid string) error {
 
 func (z *Record) Select(recordUUID string) (Record, error) {
 	var record Record
-	query := "SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE uuid = $1"
+	query := "SELECT uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE uuid = $1 AND (deleted_at = 0 OR staging = TRUE)"
 	row := z.db.QueryRow(query, recordUUID)
 	err := row.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.ModifiedAt, &record.DeletedAt, &record.ZoneUUID, &record.Staging)
 	if err != nil {

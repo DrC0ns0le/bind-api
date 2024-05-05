@@ -18,6 +18,7 @@ type Record struct {
 	Content    string `json:"content"`
 	TTL        int    `json:"ttl"`
 	ModifiedAt int    `json:"modified_at"`
+	DeletedAt  int    `json:"deleted_at"`
 	ZoneUUID   string `json:"-"`
 	Staging    bool   `json:"staging"`
 }
@@ -56,6 +57,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 			Content:    record.Content,
 			TTL:        record.TTL,
 			ModifiedAt: record.ModifiedAt,
+			DeletedAt:  record.DeletedAt,
 			Staging:    record.Staging,
 		}
 		R = append(R, temp)
@@ -86,6 +88,7 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Content:    record.Content,
 		TTL:        record.TTL,
 		ModifiedAt: record.ModifiedAt,
+		DeletedAt:  record.DeletedAt,
 		Staging:    record.Staging,
 	}
 
@@ -250,7 +253,13 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
+		errorMsg := responseBody{
+			Code:    3,
+			Message: "Unable to parse request body",
+			Data:    err.Error(),
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
 

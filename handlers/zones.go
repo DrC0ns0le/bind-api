@@ -15,6 +15,7 @@ type Zone struct {
 	UUID       string `json:"uuid"`
 	Name       string `json:"name"`
 	ModifiedAt int    `json:"modified_at"`
+	DeletedAt  int    `json:"deleted_at"`
 	Staging    bool   `json:"staging"`
 }
 
@@ -36,6 +37,7 @@ func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 			UUID:       zone.UUID,
 			Name:       zone.Name,
 			ModifiedAt: zone.ModifiedAt,
+			DeletedAt:  zone.DeletedAt,
 			Staging:    zone.Staging,
 		}
 		Z = append(Z, temp)
@@ -45,6 +47,50 @@ func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 		Code:    0,
 		Message: "Zones successfully retrieved",
 		Data:    Z,
+	}
+
+	// Convert the slice to JSON
+	data, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract zone UUID from URL
+	zoneUUID := r.PathValue("zone_uuid")
+
+	// Find the zone by UUID
+	zone, err := bd.Zones.Select(zoneUUID)
+	if err != nil {
+		errorMsg := responseBody{
+			Code:    1,
+			Message: "Zone of UUID" + zoneUUID + " not found",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
+	temp := Zone{
+		UUID:       zone.UUID,
+		Name:       zone.Name,
+		ModifiedAt: zone.ModifiedAt,
+		DeletedAt:  zone.DeletedAt,
+		Staging:    zone.Staging,
+	}
+
+	response := responseBody{
+		Code:    0,
+		Message: "Zones successfully retrieved",
+		Data:    temp,
 	}
 
 	// Convert the slice to JSON
@@ -131,6 +177,8 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 			UUID:       zone.UUID,
 			Name:       zone.Name,
 			ModifiedAt: zone.ModifiedAt,
+			DeletedAt:  zone.DeletedAt,
+			Staging:    zone.Staging,
 		},
 	}
 

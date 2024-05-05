@@ -25,8 +25,9 @@ func main() {
 
 	// CRUD for zones
 	mux.Handle("GET /api/v1/zones", middlewareChain(handlers.GetZonesHandler))
+	mux.Handle("GET /api/v1/zones/{zone_uuid}", middlewareChain(handlers.GetZoneHandler))
 	mux.Handle("POST /api/v1/zones", middlewareChain(handlers.CreateZoneHandler))
-	// mux.Handle("OPTIONS /api/v1/zones", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+	mux.Handle("OPTIONS /api/v1/zones", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
 	mux.Handle("DELETE /api/v1/zones/{zone_uuid}", middlewareChain(handlers.DeleteZoneHandler))
 
 	//CRUD for records
@@ -45,7 +46,10 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})))
 
-	// http.ListenAndServe(":8080", mux)
+	// Catch all
+	mux.Handle("/", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})))
 
 	const listenAddr = "0.0.0.0:8090"
 

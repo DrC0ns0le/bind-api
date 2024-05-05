@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"text/template"
 	"time"
 
@@ -92,21 +93,38 @@ func renderZone(zone Zone) (string, error) {
 		return "", errors.New("Failed to parse template: " + err.Error())
 	}
 
-	// Render template
 	outputDir := "output"
+
+	// Remove everything in output folder except output folder
+	if file, err := os.Stat(outputDir); err == nil {
+
+		if !file.IsDir() {
+			return "", errors.New("not a directory")
+		}
+
+		files, err := os.ReadDir(outputDir)
+		if err != nil {
+			return "", err
+		}
+
+		for _, f := range files {
+			filePath := outputDir + "/" + f.Name()
+			// only remove file with the same starting zone name
+			if !strings.HasPrefix(f.Name(), zone.Name+"-") {
+				continue
+			}
+			if err = os.RemoveAll(filePath); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	// Render template
 	filename := fmt.Sprintf("%s-rendered_%d.conf", zone.Name, time.Now().Unix())
 	path, err := filepath.Abs(filepath.Join(outputDir, filename))
 
 	if err != nil {
 		return "", errors.New("Failed to create file path: " + err.Error())
-	}
-
-	// Remove previous output file
-	if _, err := os.Stat(path); err == nil {
-		err = os.Remove(path)
-		if err != nil {
-			return "", errors.New("Failed to remove previous output file: " + err.Error())
-		}
 	}
 
 	// Create output file
