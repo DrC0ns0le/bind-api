@@ -28,7 +28,7 @@ type Record struct {
 // - []Record: A slice of Record structs representing the retrieved records.
 // - error: An error if the retrieval fails.
 func (r *Record) Get(zoneUUID string) ([]Record, error) {
-	rows, err := r.db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.modified_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid = $1 AND (r.deleted_at = 0 OR r.staging = TRUE)", zoneUUID)
+	rows, err := r.db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.modified_at, r.deleted_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid = $1 AND (r.deleted_at = 0 OR r.staging = TRUE)", zoneUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (r *Record) Get(zoneUUID string) ([]Record, error) {
 	var records []Record
 	for rows.Next() {
 		var record Record
-		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.ModifiedAt, &record.Staging)
+		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.ModifiedAt, &record.DeletedAt, &record.Staging)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (r *Record) GetAll() ([]Record, error) {
 //
 // It takes a newRecord of type Record as a parameter and returns an error.
 func (r *Record) Create(newRecord Record) error {
-	query := "INSERT INTO bind_dns.zones (uuid, type, host, content, ttl, modified_at, zone_uuid, staging) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)"
+	query := "INSERT INTO bind_dns.records (uuid, type, host, content, ttl, modified_at, deleted_at, zone_uuid, staging) VALUES ($1, $2, $3, $4, $5, $6, 0, $7, TRUE)"
 	stmt, err := r.db.Prepare(query)
 	if err != nil {
 		return err

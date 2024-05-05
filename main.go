@@ -32,7 +32,7 @@ func main() {
 
 	//CRUD for records
 	mux.Handle("GET /api/v1/zones/{zone_uuid}/records", middlewareChain(handlers.GetZoneRecordsHandler))
-	mux.Handle("POST /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.GetRecordHandler))
+	mux.Handle("GET /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.GetRecordHandler))
 	mux.Handle("POST /api/v1/zones/{zone_uuid}/records", middlewareChain(handlers.CreateRecordHandler))
 	mux.Handle("PUT /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.UpdateRecordHandler))
 	mux.Handle("PATCH /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.UpdateRecordHandler))

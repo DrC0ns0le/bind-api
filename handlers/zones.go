@@ -122,6 +122,7 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 		UUID:       uuid5,
 		Name:       requestData.Name,
 		ModifiedAt: int(time.Now().Unix()),
+		Staging:    true,
 	}
 
 	// Create the zone

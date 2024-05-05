@@ -188,6 +188,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		}(),
 		ModifiedAt: int(time.Now().Unix()),
 		ZoneUUID:   zoneUUID,
+		Staging:    true,
 	}
 
 	// Create the record
