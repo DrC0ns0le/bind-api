@@ -1,7 +1,6 @@
 package rdb
 
 import (
-	"fmt"
 	"log"
 )
 
@@ -23,7 +22,7 @@ func (bd *BindData) Init(host string, port int, user, password, dbname string) {
 	if err := bd.Ping(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Connected to the database successfully.")
+	log.Printf("Connected to the database successfully.\n")
 
 	bd.Configs = Config{db: bd.db}
 	bd.Zones = Zone{db: bd.db}

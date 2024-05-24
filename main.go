@@ -1,12 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/DrC0ns0le/bind-api/handlers"
 	"github.com/DrC0ns0le/bind-api/middleware"
 	"github.com/DrC0ns0le/bind-api/rdb"
+
+	_ "github.com/DrC0ns0le/bind-api/git"
 )
 
 var bd *rdb.BindData
@@ -58,7 +60,7 @@ func main() {
 		Handler: mux,
 	}
 
-	fmt.Printf("Listening at %s...\n", listenAddr)
+	log.Printf("Listening at %s...\n", listenAddr)
 	err := server.ListenAndServe()
 	if err != nil {
 		panic(err)
