@@ -8,7 +8,7 @@ import (
 	"github.com/DrC0ns0le/bind-api/middleware"
 	"github.com/DrC0ns0le/bind-api/rdb"
 
-	_ "github.com/DrC0ns0le/bind-api/git"
+	_ "github.com/DrC0ns0le/bind-api/commit"
 )
 
 var bd *rdb.BindData
@@ -42,6 +42,10 @@ func main() {
 
 	// Render Zones
 	mux.Handle("/api/v1/render", middlewareChain(handlers.RenderZonesHandler))
+
+	// Commit
+	mux.Handle("GET /api/v1/commit", middlewareChain(handlers.CommitStatusHandler))
+	mux.Handle("POST /api/v1/commit", middlewareChain(handlers.CommitHandler))
 
 	// Health check
 	mux.Handle("GET /health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
