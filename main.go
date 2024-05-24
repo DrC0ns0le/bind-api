@@ -41,7 +41,8 @@ func main() {
 	mux.Handle("DELETE /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.DeleteRecordHandler))
 
 	// Render Zones
-	mux.Handle("/api/v1/render", middlewareChain(handlers.RenderZonesHandler))
+	mux.Handle("GET /api/v1/render/", middlewareChain(handlers.PreviewRenderZonesHandler))
+	mux.Handle("POST /api/v1/render", middlewareChain(handlers.RenderZonesHandler))
 
 	// Commit
 	mux.Handle("GET /api/v1/commit", middlewareChain(handlers.CommitStatusHandler))
