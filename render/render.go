@@ -110,7 +110,7 @@ func renderZone(zone Zone) (string, error) {
 		for _, f := range files {
 			filePath := outputDir + "/" + f.Name()
 			// only remove file with the same starting zone name
-			if !strings.HasPrefix(f.Name(), zone.Name+"-") {
+			if !strings.HasPrefix(f.Name(), zone.Name) {
 				continue
 			}
 			if err = os.RemoveAll(filePath); err != nil {
@@ -120,7 +120,7 @@ func renderZone(zone Zone) (string, error) {
 	}
 
 	// Render template
-	filename := fmt.Sprintf("%s-rendered_%d.conf", zone.Name, time.Now().Unix())
+	filename := fmt.Sprintf("%s.conf", zone.Name)
 	path, err := filepath.Abs(filepath.Join(outputDir, filename))
 
 	if err != nil {

@@ -29,7 +29,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 }
 
 func LoggerMiddleware(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received request: %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
 		// log.Printf("Request headers: %v", r.Header)
