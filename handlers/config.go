@@ -1,7 +1,7 @@
 package handlers
 
 type Config struct {
-	ID          int
-	ConfigKey   string
-	ConfigValue string
+	ID          int    `json:"-"`
+	ConfigKey   string `json:"key"`
+	ConfigValue string `json:"value"`
 }

@@ -9,9 +9,18 @@ type Zone struct {
 	db         *sql.DB
 	UUID       string
 	Name       string
-	ModifiedAt int
-	DeletedAt  int
+	CreatedAt  uint64
+	ModifiedAt uint64
+	DeletedAt  uint64
 	Staging    bool
+	PrimaryNS  string
+	AdminEmail string
+	Serial     uint64
+	Refresh    uint16
+	Retry      uint16
+	Expire     uint16
+	Minimum    uint16
+	TTL        uint16
 }
 
 // Get retrieves all zones from the database.
@@ -20,7 +29,7 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get() ([]Zone, error) {
-	rows, err := z.db.Query("SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones WHERE deleted_at = 0 OR staging = TRUE")
+	rows, err := z.db.Query("SELECT uuid, name, created_at, modified_at, deleted_at, staging FROM bind_dns.zones WHERE deleted_at = 0 OR staging = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +38,7 @@ func (z *Zone) Get() ([]Zone, error) {
 	var zones []Zone
 	for rows.Next() {
 		var zone Zone
-		err := rows.Scan(&zone.UUID, &zone.Name, &zone.ModifiedAt, &zone.DeletedAt, &zone.Staging)
+		err := rows.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.Staging)
 		if err != nil {
 			return nil, err
 		}
@@ -47,14 +56,14 @@ func (z *Zone) Get() ([]Zone, error) {
 // Returns:
 //   - error: An error if the insertion fails.
 func (z *Zone) Create(newZone Zone) error {
-	query := "INSERT INTO bind_dns.zones (uuid, name, modified_at, deleted_at, staging) VALUES ($1, $2, $3, 0, TRUE)"
+	query := "INSERT INTO bind_dns.zones (uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, serial, refresh, retry, expire, minimum, staging) VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, $9, $10, TRUE)"
 	stmt, err := z.db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(newZone.UUID, newZone.Name, newZone.ModifiedAt, true)
+	_, err = stmt.Exec(newZone.UUID, newZone.Name, time.Now().Unix(), newZone.PrimaryNS, newZone.AdminEmail, newZone.Serial, newZone.Refresh, newZone.Retry, newZone.Expire, newZone.Minimum)
 	if err != nil {
 		return err
 	}
@@ -105,9 +114,9 @@ func (z *Zone) Delete(uuid string) error {
 // - error: An error if the retrieval fails.
 func (z *Zone) Select(zoneUUID string) (Zone, error) {
 	var zone Zone
-	query := "SELECT uuid, name, modified_at, deleted_at, staging FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at = 0 OR (deleted_at != 0 AND staging = TRUE))"
+	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, serial, refresh, retry, expire, minimum, staging, FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at = 0 OR (deleted_at != 0 AND staging = TRUE))"
 	row := z.db.QueryRow(query, zoneUUID)
-	err := row.Scan(&zone.UUID, &zone.Name, &zone.ModifiedAt, &zone.DeletedAt, &zone.Staging)
+	err := row.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.PrimaryNS, &zone.AdminEmail, &zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Minimum, &zone.Staging)
 	if err != nil {
 		return zone, err
 	}

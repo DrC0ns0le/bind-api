@@ -4,21 +4,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/DrC0ns0le/bind-api/rdb"
 	"github.com/google/uuid"
 )
 
 type Record struct {
-	ID         int    `json:"-"`
+	ID         uint32 `json:"-"`
 	UUID       string `json:"uuid"`
 	Type       string `json:"type"`
 	Host       string `json:"host"`
 	Content    string `json:"content"`
-	TTL        int    `json:"ttl"`
-	ModifiedAt int    `json:"modified_at"`
-	DeletedAt  int    `json:"deleted_at"`
+	TTL        uint16 `json:"ttl"`
+	CreatedAt  uint64 `json:"created_at"`
+	ModifiedAt uint64 `json:"modified_at"`
+	DeletedAt  uint64 `json:"deleted_at"`
 	ZoneUUID   string `json:"-"`
 	Staging    bool   `json:"staging"`
 }
@@ -56,6 +56,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 			Host:       record.Host,
 			Content:    record.Content,
 			TTL:        record.TTL,
+			CreatedAt:  record.CreatedAt,
 			ModifiedAt: record.ModifiedAt,
 			DeletedAt:  record.DeletedAt,
 			Staging:    record.Staging,
@@ -87,6 +88,7 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Host:       record.Host,
 		Content:    record.Content,
 		TTL:        record.TTL,
+		CreatedAt:  record.CreatedAt,
 		ModifiedAt: record.ModifiedAt,
 		DeletedAt:  record.DeletedAt,
 		Staging:    record.Staging,
@@ -147,7 +149,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Type    string `json:"type"`
 		Host    string `json:"host"`
 		Content string `json:"content"`
-		TTL     int    `json:"ttl"`
+		TTL     uint16 `json:"ttl"`
 	}
 	err = json.NewDecoder(r.Body).Decode(&requestData)
 	missingFields := []string{}
@@ -180,15 +182,14 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Type:    requestData.Type,
 		Host:    requestData.Host,
 		Content: requestData.Content,
-		TTL: func() int {
+		TTL: func() uint16 {
 			if requestData.TTL == 0 {
 				return 3600
 			}
 			return requestData.TTL
 		}(),
-		ModifiedAt: int(time.Now().Unix()),
-		ZoneUUID:   zoneUUID,
-		Staging:    true,
+		ZoneUUID: zoneUUID,
+		Staging:  true,
 	}
 
 	// Create the record
@@ -250,7 +251,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Type    string `json:"type"`
 		Host    string `json:"host"`
 		Content string `json:"content"`
-		TTL     int    `json:"ttl"`
+		TTL     uint16 `json:"ttl"`
 	}
 	err = json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
@@ -277,9 +278,6 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	if requestData.TTL != 0 {
 		record.TTL = requestData.TTL
 	}
-
-	// Update ModifiedAt timestamp
-	record.ModifiedAt = int(time.Now().Unix())
 
 	// Update the record
 	err = bd.Records.Update(record)

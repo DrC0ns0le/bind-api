@@ -11,12 +11,25 @@ import (
 )
 
 type Zone struct {
-	ID         int    `json:"-"`
+	ID         uint32 `json:"-"`
 	UUID       string `json:"uuid"`
 	Name       string `json:"name"`
-	ModifiedAt int    `json:"modified_at"`
-	DeletedAt  int    `json:"deleted_at"`
+	CreatedAt  uint64 `json:"created_at"`
+	ModifiedAt uint64 `json:"modified_at"`
+	DeletedAt  uint64 `json:"deleted_at"`
 	Staging    bool   `json:"staging"`
+	SOA        SOA    `json:"soa"`
+}
+
+type SOA struct {
+	PrimaryNS  string `json:"primary_ns"`
+	AdminEmail string `json:"admin_email"`
+	Serial     uint64 `json:"serial"`
+	Refresh    uint16 `json:"refresh"`
+	Retry      uint16 `json:"retry"`
+	Expire     uint16 `json:"expire"`
+	Minimum    uint16 `json:"minimum"`
+	TTL        uint16 `json:"ttl"`
 }
 
 type Zones []Zone
@@ -39,6 +52,16 @@ func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 			ModifiedAt: zone.ModifiedAt,
 			DeletedAt:  zone.DeletedAt,
 			Staging:    zone.Staging,
+			SOA: SOA{
+				PrimaryNS:  zone.PrimaryNS,
+				AdminEmail: zone.AdminEmail,
+				Serial:     zone.Serial,
+				Refresh:    zone.Refresh,
+				Retry:      zone.Retry,
+				Expire:     zone.Expire,
+				Minimum:    zone.Minimum,
+				TTL:        zone.TTL,
+			},
 		}
 		Z = append(Z, temp)
 	}
@@ -82,6 +105,7 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 	temp := Zone{
 		UUID:       zone.UUID,
 		Name:       zone.Name,
+		CreatedAt:  zone.CreatedAt,
 		ModifiedAt: zone.ModifiedAt,
 		DeletedAt:  zone.DeletedAt,
 		Staging:    zone.Staging,
@@ -121,7 +145,7 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	newZone := rdb.Zone{
 		UUID:       uuid5,
 		Name:       requestData.Name,
-		ModifiedAt: int(time.Now().Unix()),
+		ModifiedAt: uint64(time.Now().Unix()),
 		Staging:    true,
 	}
 
