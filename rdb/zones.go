@@ -15,7 +15,6 @@ type Zone struct {
 	Staging    bool
 	PrimaryNS  string
 	AdminEmail string
-	Serial     uint64
 	Refresh    uint16
 	Retry      uint16
 	Expire     uint16
@@ -56,14 +55,14 @@ func (z *Zone) Get() ([]Zone, error) {
 // Returns:
 //   - error: An error if the insertion fails.
 func (z *Zone) Create(newZone Zone) error {
-	query := "INSERT INTO bind_dns.zones (uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, serial, refresh, retry, expire, minimum, staging) VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, $9, $10, TRUE)"
+	query := "INSERT INTO bind_dns.zones (uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging) VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, $9, TRUE)"
 	stmt, err := z.db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(newZone.UUID, newZone.Name, time.Now().Unix(), newZone.PrimaryNS, newZone.AdminEmail, newZone.Serial, newZone.Refresh, newZone.Retry, newZone.Expire, newZone.Minimum)
+	_, err = stmt.Exec(newZone.UUID, newZone.Name, time.Now().Unix(), newZone.PrimaryNS, newZone.AdminEmail, newZone.Refresh, newZone.Retry, newZone.Expire, newZone.Minimum)
 	if err != nil {
 		return err
 	}
@@ -114,9 +113,9 @@ func (z *Zone) Delete(uuid string) error {
 // - error: An error if the retrieval fails.
 func (z *Zone) Select(zoneUUID string) (Zone, error) {
 	var zone Zone
-	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, serial, refresh, retry, expire, minimum, staging, FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at = 0 OR (deleted_at != 0 AND staging = TRUE))"
+	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging, FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at = 0 OR (deleted_at != 0 AND staging = TRUE))"
 	row := z.db.QueryRow(query, zoneUUID)
-	err := row.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.PrimaryNS, &zone.AdminEmail, &zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Minimum, &zone.Staging)
+	err := row.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.PrimaryNS, &zone.AdminEmail, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Minimum, &zone.Staging)
 	if err != nil {
 		return zone, err
 	}

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/DrC0ns0le/bind-api/rdb"
 	"github.com/google/uuid"
@@ -24,7 +23,6 @@ type Zone struct {
 type SOA struct {
 	PrimaryNS  string `json:"primary_ns"`
 	AdminEmail string `json:"admin_email"`
-	Serial     uint64 `json:"serial"`
 	Refresh    uint16 `json:"refresh"`
 	Retry      uint16 `json:"retry"`
 	Expire     uint16 `json:"expire"`
@@ -52,16 +50,6 @@ func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 			ModifiedAt: zone.ModifiedAt,
 			DeletedAt:  zone.DeletedAt,
 			Staging:    zone.Staging,
-			SOA: SOA{
-				PrimaryNS:  zone.PrimaryNS,
-				AdminEmail: zone.AdminEmail,
-				Serial:     zone.Serial,
-				Refresh:    zone.Refresh,
-				Retry:      zone.Retry,
-				Expire:     zone.Expire,
-				Minimum:    zone.Minimum,
-				TTL:        zone.TTL,
-			},
 		}
 		Z = append(Z, temp)
 	}
@@ -102,19 +90,26 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	temp := Zone{
-		UUID:       zone.UUID,
-		Name:       zone.Name,
-		CreatedAt:  zone.CreatedAt,
-		ModifiedAt: zone.ModifiedAt,
-		DeletedAt:  zone.DeletedAt,
-		Staging:    zone.Staging,
-	}
-
 	response := responseBody{
 		Code:    0,
 		Message: "Zones successfully retrieved",
-		Data:    temp,
+		Data: Zone{
+			UUID:       zone.UUID,
+			Name:       zone.Name,
+			CreatedAt:  zone.CreatedAt,
+			ModifiedAt: zone.ModifiedAt,
+			DeletedAt:  zone.DeletedAt,
+			Staging:    zone.Staging,
+			SOA: SOA{
+				PrimaryNS:  zone.PrimaryNS,
+				AdminEmail: zone.AdminEmail,
+				Refresh:    zone.Refresh,
+				Retry:      zone.Retry,
+				Expire:     zone.Expire,
+				Minimum:    zone.Minimum,
+				TTL:        zone.TTL,
+			},
+		},
 	}
 
 	// Convert the slice to JSON
@@ -130,8 +125,18 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 
 func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
+	type requestSOA struct {
+		PrimaryNS  string `json:"primary_ns"`
+		AdminEmail string `json:"admin_email"`
+		Refresh    uint16 `json:"refresh"`
+		Retry      uint16 `json:"retry"`
+		Expire     uint16 `json:"expire"`
+		Minimum    uint16 `json:"minimum"`
+		TTL        uint16 `json:"ttl"`
+	}
 	var requestData struct {
-		Name string `json:"name"`
+		Name string     `json:"name"`
+		SOA  requestSOA `json:"soa"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
@@ -145,7 +150,13 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	newZone := rdb.Zone{
 		UUID:       uuid5,
 		Name:       requestData.Name,
-		ModifiedAt: uint64(time.Now().Unix()),
+		PrimaryNS:  requestData.SOA.PrimaryNS,
+		AdminEmail: requestData.SOA.AdminEmail,
+		Refresh:    requestData.SOA.Refresh,
+		Retry:      requestData.SOA.Retry,
+		Expire:     requestData.SOA.Expire,
+		Minimum:    requestData.SOA.Minimum,
+		TTL:        requestData.SOA.TTL,
 		Staging:    true,
 	}
 
