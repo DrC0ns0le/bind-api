@@ -125,18 +125,9 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 
 func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
-	type requestSOA struct {
-		PrimaryNS  string `json:"primary_ns"`
-		AdminEmail string `json:"admin_email"`
-		Refresh    uint16 `json:"refresh"`
-		Retry      uint16 `json:"retry"`
-		Expire     uint16 `json:"expire"`
-		Minimum    uint16 `json:"minimum"`
-		TTL        uint16 `json:"ttl"`
-	}
 	var requestData struct {
-		Name string     `json:"name"`
-		SOA  requestSOA `json:"soa"`
+		Name string `json:"name"`
+		SOA  SOA    `json:"soa"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
