@@ -17,7 +17,7 @@ type Zone struct {
 	AdminEmail string
 	Refresh    uint16
 	Retry      uint16
-	Expire     uint16
+	Expire     uint32
 	Minimum    uint16
 	TTL        uint16
 }
@@ -65,6 +65,39 @@ func (z *Zone) Create(newZone Zone) error {
 	_, err = stmt.Exec(newZone.UUID, newZone.Name, time.Now().Unix(), newZone.PrimaryNS, newZone.AdminEmail, newZone.Refresh, newZone.Retry, newZone.Expire, newZone.Minimum)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Update zones in the database with the provided newZone.
+//
+// Parameters:
+// - newZone: The new zone to update. All fields in newZone must be populated, except for the UUID field.
+//
+// Returns:
+// - error: An error if the update fails.
+func (z *Zone) Update(newZone Zone) error {
+	query := "UPDATE bind_dns.zones SET name = $1, primary_ns = $2, admin_email = $3, refresh = $4, retry = $5, expire = $6, minimum = $7, staging = TRUE WHERE uuid = $8"
+	stmt, err := z.db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	result, err := stmt.Exec(newZone.Name, newZone.PrimaryNS, newZone.AdminEmail, newZone.Refresh, newZone.Retry, newZone.Expire, newZone.Minimum, newZone.UUID)
+	if err != nil {
+		return err
+	}
+
+	// Log the output
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
 	}
 
 	return nil
@@ -120,4 +153,27 @@ func (z *Zone) Select(zoneUUID string) (Zone, error) {
 		return zone, err
 	}
 	return zone, nil
+}
+
+// GetStaging retrieves all staging zones from the database.
+//
+// It returns a slice of Zone structs representing the retrieved zones and an error if the retrieval fails.
+func (z *Zone) GetStaging() ([]Zone, error) {
+	rows, err := z.db.Query("SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE staging = TRUE")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var zones []Zone
+	for rows.Next() {
+		var zone Zone
+		err := rows.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.PrimaryNS, &zone.AdminEmail, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Minimum, &zone.Staging)
+		if err != nil {
+			return nil, err
+		}
+		zones = append(zones, zone)
+	}
+
+	return zones, nil
 }

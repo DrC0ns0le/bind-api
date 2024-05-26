@@ -25,7 +25,7 @@ type SOA struct {
 	AdminEmail string `json:"admin_email"`
 	Refresh    uint16 `json:"refresh"`
 	Retry      uint16 `json:"retry"`
-	Expire     uint16 `json:"expire"`
+	Expire     uint32 `json:"expire"`
 	Minimum    uint16 `json:"minimum"`
 	TTL        uint16 `json:"ttl"`
 }

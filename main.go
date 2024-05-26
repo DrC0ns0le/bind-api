@@ -42,10 +42,10 @@ func main() {
 
 	// Render Zones
 	mux.Handle("GET /api/v1/render/", middlewareChain(handlers.PreviewRenderZonesHandler))
-	mux.Handle("POST /api/v1/render", middlewareChain(handlers.RenderZonesHandler))
+	mux.Handle("POST /api/v1/render", middlewareChain(handlers.RenderZonesHandler)) // only for debugging
 
 	// Commit
-	mux.Handle("GET /api/v1/commit", middlewareChain(handlers.CommitStatusHandler))
+	mux.Handle("GET /api/v1/commit", middlewareChain(handlers.GetCommitHandler))
 	mux.Handle("POST /api/v1/commit", middlewareChain(handlers.CommitHandler))
 
 	// Health check

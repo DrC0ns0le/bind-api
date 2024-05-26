@@ -1,6 +1,7 @@
 package commit
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -67,11 +68,12 @@ func Push() error {
 		return err
 	}
 
-	// git commit -m \"example go-git commit\"
-	commit, err := w.Commit("bind-api commit", &git.CommitOptions{
+	// git commit -m \"message\"
+	commitMsg := fmt.Sprintf("api commit at %s", time.Now().Format(time.RFC3339))
+	commit, err := w.Commit(commitMsg, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  "Lee Jack Sonz",
-			Email: "me@leejacksonz.com",
+			Name:  "Bind Bot",
+			Email: "bind.bot@leejacksonz.com",
 			When:  time.Now(),
 		},
 	})

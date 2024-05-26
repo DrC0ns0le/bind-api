@@ -5,17 +5,25 @@ import (
 	"net/http"
 
 	"github.com/DrC0ns0le/bind-api/commit"
+	"github.com/DrC0ns0le/bind-api/render"
 )
 
-func CommitStatusHandler(w http.ResponseWriter, r *http.Request) {
+// GetCommitHandler retrieves all zones and records in staging and returns them in a JSON response.
+//
+// Parameters:
+// - w: http.ResponseWriter - the response writer used to write the response.
+// - r: *http.Request - the HTTP request object.
+//
+// Returns:
+// None.
+func GetCommitHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Commit status
-	status, err := commit.Staging()
+	Z, R, err := getAllStaging()
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Unable to check commit status",
+			Message: "Unable to retrieve changes in staging",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -23,24 +31,38 @@ func CommitStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseBody := responseBody{
+	response := responseBody{
 		Code:    0,
-		Message: "Commit status",
+		Message: "Changes in staging successfully retrieved",
 		Data: struct {
-			Staging bool `json:"staging"`
+			Zones   []Zone   `json:"zones"`
+			Records []Record `json:"records"`
 		}{
-			Staging: status,
-		},
+			Zones:   Z,
+			Records: R},
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(responseBody)
+	json.NewEncoder(w).Encode(response)
 }
 
 func CommitHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Render all zones
+	err := render.RenderZonesTemplate(bd)
+	if err != nil {
+		errorMsg := responseBody{
+			Code:    1,
+			Message: "Zone rendering failed",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
 	// Commit changes
-	err := commit.Push()
+	err = commit.Push()
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,
@@ -52,5 +74,63 @@ func CommitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responseBody := responseBody{
+		Code:    0,
+		Message: "Changes successfully committed",
+		Data:    nil,
+	}
 	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(responseBody)
+}
+
+func getAllStaging() ([]Zone, []Record, error) {
+	// Get all zones in staging
+	zones, err := bd.Zones.GetStaging()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var Z Zones
+
+	for _, zone := range zones {
+		temp := Zone{
+			UUID:       zone.UUID,
+			Name:       zone.Name,
+			ModifiedAt: zone.ModifiedAt,
+			DeletedAt:  zone.DeletedAt,
+			Staging:    zone.Staging,
+			SOA: SOA{
+				PrimaryNS:  zone.PrimaryNS,
+				AdminEmail: zone.AdminEmail,
+				Refresh:    zone.Refresh,
+				Retry:      zone.Retry,
+				Expire:     zone.Expire,
+				Minimum:    zone.Minimum,
+				TTL:        zone.TTL,
+			},
+		}
+		Z = append(Z, temp)
+	}
+
+	// Get all records in staging
+	records, err := bd.Records.GetStaging()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var R Records
+
+	for _, record := range records {
+		temp := Record{
+			UUID:    record.UUID,
+			Type:    record.Type,
+			Host:    record.Host,
+			Content: record.Content,
+			TTL:     record.TTL,
+			Staging: record.Staging,
+		}
+		R = append(R, temp)
+	}
+
+	return Z, R, nil
 }

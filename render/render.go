@@ -17,19 +17,19 @@ import (
 type SOA struct {
 	PrimaryNS  string
 	AdminEmail string
-	Serial     int
-	Refresh    int
-	Retry      int
-	Expire     int
-	Minimum    int
-	TTL        int
+	Serial     uint64
+	Refresh    uint16
+	Retry      uint16
+	Expire     uint32
+	Minimum    uint16
+	TTL        uint16
 }
 
 type Record struct {
 	Type    string
 	Host    string
 	Content string
-	TTL     int
+	TTL     uint16
 }
 
 type Zone struct {
@@ -68,14 +68,14 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 			Name:    z.Name,
 			Records: RS,
 			SOA: SOA{
-				PrimaryNS:  "ns.placeholder",
-				AdminEmail: "webmaster",
-				Serial:     int(time.Now().Unix()),
-				Refresh:    3600,
-				Retry:      600,
-				Expire:     604800,
-				Minimum:    1800,
-				TTL:        3600,
+				PrimaryNS:  z.PrimaryNS,
+				AdminEmail: z.AdminEmail,
+				Serial:     uint64(time.Now().Unix()),
+				Refresh:    z.Refresh,
+				Retry:      z.Retry,
+				Expire:     z.Expire,
+				Minimum:    z.Minimum,
+				TTL:        z.TTL,
 			},
 		}
 
