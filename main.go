@@ -30,6 +30,8 @@ func main() {
 	mux.Handle("GET /api/v1/zones/{zone_uuid}", middlewareChain(handlers.GetZoneHandler))
 	mux.Handle("POST /api/v1/zones", middlewareChain(handlers.CreateZoneHandler))
 	mux.Handle("OPTIONS /api/v1/zones", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+	mux.Handle("PUT /api/v1/zones/{zone_uuid}", middlewareChain(handlers.UpdateZoneHandler))
+	mux.Handle("PATCH /api/v1/zones/{zone_uuid}", middlewareChain(handlers.UpdateZoneHandler))
 	mux.Handle("DELETE /api/v1/zones/{zone_uuid}", middlewareChain(handlers.DeleteZoneHandler))
 
 	//CRUD for records
