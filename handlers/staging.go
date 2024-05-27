@@ -8,7 +8,7 @@ import (
 	"github.com/DrC0ns0le/bind-api/render"
 )
 
-// GetCommitHandler retrieves all zones and records in staging and returns them in a JSON response.
+// GetStagingHandler retrieves all zones and records in staging and returns them in a JSON response.
 //
 // Parameters:
 // - w: http.ResponseWriter - the response writer used to write the response.
@@ -16,7 +16,7 @@ import (
 //
 // Returns:
 // None.
-func GetCommitHandler(w http.ResponseWriter, r *http.Request) {
+func GetStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	Z, R, err := getAllStaging()
@@ -45,7 +45,7 @@ func GetCommitHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func CommitHandler(w http.ResponseWriter, r *http.Request) {
+func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Render all zones

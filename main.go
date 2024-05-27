@@ -43,12 +43,11 @@ func main() {
 	mux.Handle("DELETE /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.DeleteRecordHandler))
 
 	// Render Zones
-	mux.Handle("GET /api/v1/render/", middlewareChain(handlers.PreviewRenderZonesHandler))
-	mux.Handle("POST /api/v1/render", middlewareChain(handlers.RenderZonesHandler)) // only for debugging
+	mux.Handle("GET /api/v1/render", middlewareChain(handlers.GetRendersHandler))
 
-	// Commit
-	mux.Handle("GET /api/v1/commit", middlewareChain(handlers.GetCommitHandler))
-	mux.Handle("POST /api/v1/commit", middlewareChain(handlers.CommitHandler))
+	// Stage & Commit
+	mux.Handle("GET /api/v1/staging", middlewareChain(handlers.GetStagingHandler))
+	mux.Handle("POST /api/v1/staging", middlewareChain(handlers.ApplyStagingHandler))
 
 	// Health check
 	mux.Handle("GET /health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
