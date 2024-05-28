@@ -18,7 +18,7 @@ type Zone struct {
 	ModifiedAt uint64 `json:"modified_at"`
 	DeletedAt  uint64 `json:"deleted_at"`
 	Staging    bool   `json:"staging"`
-	SOA        SOA    `json:"soa"`
+	SOA        SOA    `json:"soa,omitempty"`
 }
 
 type SOA struct {
@@ -83,7 +83,7 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Zone of UUID" + zoneUUID + " not found",
+			Message: "Could not retrieve zone " + zoneUUID,
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)

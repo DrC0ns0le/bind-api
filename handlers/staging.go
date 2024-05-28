@@ -122,12 +122,15 @@ func getAllStaging() ([]Zone, []Record, error) {
 
 	for _, record := range records {
 		temp := Record{
-			UUID:    record.UUID,
-			Type:    record.Type,
-			Host:    record.Host,
-			Content: record.Content,
-			TTL:     record.TTL,
-			Staging: record.Staging,
+			UUID:       record.UUID,
+			Type:       record.Type,
+			Host:       record.Host,
+			Content:    record.Content,
+			TTL:        record.TTL,
+			CreatedAt:  record.CreatedAt,
+			ModifiedAt: record.ModifiedAt,
+			DeletedAt:  record.DeletedAt,
+			Staging:    record.Staging,
 		}
 		R = append(R, temp)
 	}
