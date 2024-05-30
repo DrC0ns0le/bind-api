@@ -245,7 +245,11 @@ func PreviewZoneRender(_bd *rdb.BindData) (map[string]string, error) {
 
 	// Execute the template for each zone and store output in map
 	var buf bytes.Buffer
-	err = t.Execute(&buf, zones)
+	zs := struct {
+		Zones []Zone
+	}{
+		Zones: zones}
+	err = t.Execute(&buf, zs)
 	if err != nil {
 		return nil, errors.New("Failed to render template: " + err.Error())
 	}
