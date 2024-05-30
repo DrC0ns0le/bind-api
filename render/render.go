@@ -14,6 +14,8 @@ import (
 	"github.com/DrC0ns0le/bind-api/rdb"
 )
 
+const outputDir = "output"
+
 type SOA struct {
 	PrimaryNS  string
 	AdminEmail string
@@ -85,6 +87,52 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 	return ZS, nil
 }
 
+func renderNamedZones(zones []Zone) (string, error) {
+	const fileName = "named.conf.zones"
+	const templateName = "bind-named-zones.tmpl"
+
+	// Parse template
+	_, filePath, _, _ := runtime.Caller(0)
+	templatePath := filepath.Dir(filePath) + "/templates/" + templateName
+	t, err := template.New(templateName).ParseFiles(templatePath)
+	if err != nil {
+		return "", errors.New("Failed to parse template: " + err.Error())
+	}
+
+	// Remove the file named.conf.zones if exists in output folder
+	if _, err := os.Stat(outputDir + "/" + fileName); err == nil {
+		if err = os.Remove(outputDir + "/" + fileName); err != nil {
+			return "", err
+		}
+	}
+
+	// Render template
+	path, err := filepath.Abs(filepath.Join(outputDir, fileName))
+
+	if err != nil {
+		return "", errors.New("Failed to create file path: " + err.Error())
+	}
+
+	// Create output file
+	f, err := os.Create(path)
+	if err != nil {
+		return "", errors.New("Failed to create output file: " + err.Error())
+	}
+	defer f.Close()
+
+	// Execute template
+	zs := struct {
+		Zones []Zone
+	}{
+		Zones: zones}
+	err = t.Execute(f, zs)
+	if err != nil {
+		return "", errors.New("Failed to render template: " + err.Error())
+	}
+
+	return path, nil
+}
+
 func renderZone(zone Zone) (string, error) {
 	// Parse template
 	_, filePath, _, _ := runtime.Caller(0)
@@ -93,8 +141,6 @@ func renderZone(zone Zone) (string, error) {
 	if err != nil {
 		return "", errors.New("Failed to parse template: " + err.Error())
 	}
-
-	outputDir := "output"
 
 	// Remove everything in output folder except output folder
 	if file, err := os.Stat(outputDir); err == nil {
@@ -152,6 +198,12 @@ func RenderZonesTemplate(_bd *rdb.BindData) error {
 		return err
 	}
 
+	// Render configs
+	_, err = renderNamedZones(zs)
+	if err != nil {
+		return err
+	}
+
 	// Render all zones
 	for _, z := range zs {
 		_, err := renderZone(z)
@@ -178,6 +230,28 @@ func PreviewZoneRender(_bd *rdb.BindData) (map[string]string, error) {
 	}
 
 	zoneOutputs := make(map[string]string)
+
+	// Render named.conf.zones
+	fileName := "named.conf.zones"
+	templateName := "bind-named-zones.tmpl"
+
+	// Parse template
+	_, filePath, _, _ := runtime.Caller(0)
+	templatePath := filepath.Dir(filePath) + "/templates/" + templateName
+	t, err := template.New(templateName).ParseFiles(templatePath)
+	if err != nil {
+		return nil, errors.New("Failed to parse template: " + err.Error())
+	}
+
+	// Execute the template for each zone and store output in map
+	var buf bytes.Buffer
+	err = t.Execute(&buf, zones)
+	if err != nil {
+		return nil, errors.New("Failed to render template: " + err.Error())
+	}
+
+	// Store the rendered content for each zone in the output map
+	zoneOutputs[fileName] = buf.String()
 
 	// Render all zones using a template and store the output in a map
 	for _, zone := range zones {
