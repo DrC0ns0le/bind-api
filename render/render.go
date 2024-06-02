@@ -43,15 +43,36 @@ type Zone struct {
 func createZones(_bd *rdb.BindData) ([]Zone, error) {
 	var ZS []Zone
 
-	zs, err := _bd.Zones.Get()
+	arpaZone := Zone{
+		Name:    "arpa",
+		Records: []Record{},
+		SOA: SOA{
+			// PrimaryNS:  _bd.Configs.PrimaryNS,
+			// AdminEmail: _bd.Configs.AdminEmail,
+			// Refresh:    _bd.Configs.Refresh,
+			// Retry:      _bd.Configs.Retry,
+			// Expire:     _bd.Configs.Expire,
+			// Minimum:    _bd.Configs.Minimum,
+			// TTL:        _bd.Configs.TTL,
 
+			// Hardcoded for now
+			PrimaryNS:  "ns.arpa.leejacksonz.com",
+			AdminEmail: "admin@leejacksonz.com",
+			Refresh:    1800,
+			Retry:      1800,
+			Expire:     604800,
+			Minimum:    1800,
+			TTL:        3600,
+		},
+	}
+
+	zs, err := _bd.Zones.Get()
 	if err != nil {
 		return ZS, err
 	}
 
 	for _, z := range zs {
 		rs, err := _bd.Records.Get(z.UUID)
-
 		if err != nil {
 			return ZS, err
 		}
@@ -64,6 +85,25 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 				Content: r.Content,
 				TTL:     r.TTL,
 			})
+
+			// Create record for reverse lookup
+			if r.AddPTR && (r.Type == "A" || r.Type == "AAAA") {
+				var addr string
+				if r.Type == "A" {
+					// Generate PTR address for IPv4
+					addr = fmt.Sprintf("%s.in-addr.arpa.", reverseIPv4(r.Content))
+				} else if r.Type == "AAAA" {
+					// Generate PTR address for IPv6
+					addr = fmt.Sprintf("%s.ip6.arpa.", reverseIPv6(r.Content))
+				}
+
+				arpaZone.Records = append(arpaZone.Records, Record{
+					Type:    "PTR",
+					Host:    addr,
+					Content: r.Host + "." + z.Name,
+					TTL:     r.TTL,
+				})
+			}
 		}
 
 		Z := Zone{
@@ -84,7 +124,26 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 		ZS = append(ZS, Z)
 	}
 
-	return ZS, nil
+	return append(ZS, arpaZone), nil
+}
+
+func reverseIPv4(s string) string {
+	parts := strings.Split(s, ".")
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+	return strings.Join(parts, ".")
+}
+
+func reverseIPv6(s string) string {
+	// Remove colons and reverse each nibble
+	s = strings.ReplaceAll(s, ":", "")
+	nibbles := []rune(s)
+	for i, j := 0, len(nibbles)-1; i < j; i, j = i+1, j-1 {
+		nibbles[i], nibbles[j] = nibbles[j], nibbles[i]
+	}
+	// Join with dots
+	return strings.Join(strings.Split(string(nibbles), ""), ".")
 }
 
 func renderNamedZones(zones []Zone) (string, error) {

@@ -16,6 +16,7 @@ type Record struct {
 	Host       string `json:"host"`
 	Content    string `json:"content"`
 	TTL        uint16 `json:"ttl"`
+	AddPTR     bool   `json:"add_ptr"`
 	CreatedAt  uint64 `json:"created_at"`
 	ModifiedAt uint64 `json:"modified_at"`
 	DeletedAt  uint64 `json:"deleted_at"`
@@ -56,6 +57,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 			Host:       record.Host,
 			Content:    record.Content,
 			TTL:        record.TTL,
+			AddPTR:     record.AddPTR,
 			CreatedAt:  record.CreatedAt,
 			ModifiedAt: record.ModifiedAt,
 			DeletedAt:  record.DeletedAt,
@@ -150,6 +152,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Host    string `json:"host"`
 		Content string `json:"content"`
 		TTL     uint16 `json:"ttl"`
+		AddPTR  bool   `json:"add_ptr"`
 	}
 	err = json.NewDecoder(r.Body).Decode(&requestData)
 	missingFields := []string{}
@@ -188,6 +191,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return requestData.TTL
 		}(),
+		AddPTR:   requestData.AddPTR,
 		ZoneUUID: zoneUUID,
 		Staging:  true,
 	}
@@ -252,6 +256,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Host    string `json:"host"`
 		Content string `json:"content"`
 		TTL     uint16 `json:"ttl"`
+		AddPTR  bool   `json:"add_ptr"`
 	}
 	err = json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
@@ -278,6 +283,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	if requestData.TTL != 0 {
 		record.TTL = requestData.TTL
 	}
+	record.AddPTR = requestData.AddPTR
 
 	// Update the record
 	err = bd.Records.Update(record)

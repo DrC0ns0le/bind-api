@@ -1,16 +1,23 @@
-{{$soa := .SOA}}
-{{$records := .Records}}
+{{- $soa := .SOA}}
+{{- $records := .Records -}}
 
-$ORIGIN {{.Name}}.
+$TTL {{.SOA.TTL}}    ; default TTL for zone
+$ORIGIN {{.Name}}.  ; base domain-name
+; Start of Authority RR defining the key characteristics of the zone (domain)
+@       IN      SOA     {{.SOA.PrimaryNS}}. {{.SOA.AdminEmail}}. (
+                        {{.SOA.Serial}}                 ; serial number
+                        {{.SOA.Refresh}}                       ; refresh
+                        {{.SOA.Retry}}                        ; update retry 
+                        {{.SOA.Expire}}                     ; expiry
+                        {{.SOA.Minimum}}                      ; minimum
+                        )
 
-@                      {{.SOA.TTL}} SOA   {{.SOA.PrimaryNS}}. (
-                              {{.SOA.AdminEmail}}.     ; address of responsible party
-                              {{.SOA.Serial}}                 ; serial number
-                              {{.SOA.Refresh}}                       ; refresh period
-                              {{.SOA.Retry}}                        ; retry period
-                              {{.SOA.Expire}}                     ; expire time
-                              {{.SOA.Minimum}}                     ) ; minimum ttl
+; name server RR for the domain
+        IN      NS     ns
+
+; ns record
+ns      IN      A       10.224.8.59
 
 {{range $records}}
-{{- .Host}} {{.TTL}} {{.Type}} {{.Content}}
+{{- .Host}} {{.Type}} {{.Content}}
 {{end}}
