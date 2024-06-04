@@ -42,28 +42,18 @@ type Zone struct {
 
 func createZones(_bd *rdb.BindData) ([]Zone, error) {
 	var ZS []Zone
+	rDNS := make(map[string][]Record)
 
-	arpaZone := Zone{
-		Name:    "arpa",
-		Records: []Record{},
-		SOA: SOA{
-			// PrimaryNS:  _bd.Configs.PrimaryNS,
-			// AdminEmail: _bd.Configs.AdminEmail,
-			// Refresh:    _bd.Configs.Refresh,
-			// Retry:      _bd.Configs.Retry,
-			// Expire:     _bd.Configs.Expire,
-			// Minimum:    _bd.Configs.Minimum,
-			// TTL:        _bd.Configs.TTL,
-
-			// Hardcoded for now
-			PrimaryNS:  "ns.arpa.leejacksonz.com",
-			AdminEmail: "admin@leejacksonz.com",
-			Refresh:    1800,
-			Retry:      1800,
-			Expire:     604800,
-			Minimum:    1800,
-			TTL:        3600,
-		},
+	addReverseDNS := func(z rdb.Zone, r rdb.Record, rDNS *map[string][]Record, a string) {
+		if _, ok := (*rDNS)[a]; !ok {
+			(*rDNS)[a] = []Record{}
+		}
+		(*rDNS)[a] = append((*rDNS)[a], Record{
+			Type:    r.Type,
+			Host:    r.Host + "." + z.Name + ".",
+			Content: r.Content,
+			TTL:     r.TTL,
+		})
 	}
 
 	zs, err := _bd.Zones.Get()
@@ -87,22 +77,24 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 			})
 
 			// Create record for reverse lookup
-			if r.AddPTR && (r.Type == "A" || r.Type == "AAAA") {
-				var addr string
+			if r.AddPTR {
 				if r.Type == "A" {
-					// Generate PTR address for IPv4
-					addr = fmt.Sprintf("%s.in-addr.arpa.", reverseIPv4(r.Content))
+					parts := strings.Split(r.Content, ".")
+					if parts[0] == "10" {
+						addReverseDNS(z, r, &rDNS, "10.in-addr.arpa")
+					} else if parts[0] == "192" && parts[1] == "168" {
+						addReverseDNS(z, r, &rDNS, "168.192.in-addr.arpa")
+					} else if parts[0] == "172" {
+						addReverseDNS(z, r, &rDNS, fmt.Sprintf("%s.%s.in-addr.arpa", parts[1], parts[0]))
+					} else {
+						return ZS, errors.New("Unsupported reverse IPv4 address")
+					}
 				} else if r.Type == "AAAA" {
-					// Generate PTR address for IPv6
-					addr = fmt.Sprintf("%s.ip6.arpa.", reverseIPv6(r.Content))
+					parts := strings.Split(r.Content, ":")
+					if parts[0] == "fdac" {
+						addReverseDNS(z, r, &rDNS, "d.f.ip6.arpa")
+					}
 				}
-
-				arpaZone.Records = append(arpaZone.Records, Record{
-					Type:    "PTR",
-					Host:    addr,
-					Content: r.Host + "." + z.Name,
-					TTL:     r.TTL,
-				})
 			}
 		}
 
@@ -124,7 +116,52 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 		ZS = append(ZS, Z)
 	}
 
-	return append(ZS, arpaZone), nil
+	for arpaZone, rs := range rDNS {
+		var rRS []Record
+		for _, r := range rs {
+			var addr string
+			if r.Type == "A" {
+				// Generate PTR address for IPv4
+				addr = fmt.Sprintf("%s.in-addr.arpa.", reverseIPv4(r.Content))
+			} else if r.Type == "AAAA" {
+				// Generate PTR address for IPv6
+				addr = fmt.Sprintf("%s.ip6.arpa.", reverseIPv6(r.Content))
+			}
+
+			rRS = append(rRS, Record{
+				Type:    "PTR",
+				Host:    addr,
+				Content: r.Host,
+				TTL:     r.TTL,
+			})
+		}
+
+		ZS = append(ZS, Zone{
+			Name:    arpaZone,
+			Records: rRS,
+			SOA: SOA{
+				// PrimaryNS:  _bd.Configs.PrimaryNS,
+				// AdminEmail: _bd.Configs.AdminEmail,
+				// Refresh:    _bd.Configs.Refresh,
+				// Retry:      _bd.Configs.Retry,
+				// Expire:     _bd.Configs.Expire,
+				// Minimum:    _bd.Configs.Minimum,
+				// TTL:        _bd.Configs.TTL,
+
+				// Hardcoded for now
+				PrimaryNS:  "ns.arpa.leejacksonz.com",
+				AdminEmail: "admin.leejacksonz.com",
+				Serial:     uint64(time.Now().Unix()),
+				Refresh:    1800,
+				Retry:      1800,
+				Expire:     604800,
+				Minimum:    1800,
+				TTL:        3600,
+			},
+		})
+	}
+
+	return ZS, nil
 }
 
 func reverseIPv4(s string) string {

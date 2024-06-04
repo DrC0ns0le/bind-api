@@ -3,6 +3,7 @@
 
 $TTL {{.SOA.TTL}}    ; default TTL for zone
 $ORIGIN {{.Name}}.  ; base domain-name
+
 ; Start of Authority RR defining the key characteristics of the zone (domain)
 @       IN      SOA     {{.SOA.PrimaryNS}}. {{.SOA.AdminEmail}}. (
                         {{.SOA.Serial}}                 ; serial number
@@ -19,5 +20,5 @@ $ORIGIN {{.Name}}.  ; base domain-name
 ns      IN      A       10.224.8.59
 
 {{range $records}}
-{{- .Host}} {{.Type}} {{.Content}}
+{{- .Host}} IN {{.Type}} {{.Content}}
 {{end}}
