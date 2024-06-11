@@ -1,7 +1,6 @@
 package render
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -87,7 +86,7 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 					} else if parts[0] == "172" {
 						addReverseDNS(z, r, &rDNS, fmt.Sprintf("%s.%s.in-addr.arpa", parts[1], parts[0]))
 					} else {
-						return ZS, errors.New("Unsupported reverse IPv4 address")
+						return ZS, errors.New("unsupported reverse IPv4 address")
 					}
 				} else if r.Type == "AAAA" {
 					parts := strings.Split(r.Content, ":")
@@ -175,12 +174,12 @@ func reverseIPv4(s string) string {
 func reverseIPv6(s string) string {
 	// Remove colons and reverse each nibble
 	s = strings.ReplaceAll(s, ":", "")
-	nibbles := []rune(s)
-	for i, j := 0, len(nibbles)-1; i < j; i, j = i+1, j-1 {
-		nibbles[i], nibbles[j] = nibbles[j], nibbles[i]
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
 	}
 	// Join with dots
-	return strings.Join(strings.Split(string(nibbles), ""), ".")
+	return strings.Join(strings.Split(string(runes), ""), ".")
 }
 
 func renderNamedZones(zones []Zone) (string, error) {
@@ -315,64 +314,4 @@ func RenderZonesTemplate(_bd *rdb.BindData) error {
 	}
 
 	return nil
-}
-
-func PreviewZoneRender(_bd *rdb.BindData) (map[string]string, error) {
-
-	// Create all zones
-	zones, err := createZones(_bd)
-	if err != nil {
-		return nil, err
-	}
-
-	zoneOutputs := make(map[string]string)
-
-	// Render named.conf.zones
-	fileName := "named.conf.zones"
-	templateName := "bind-named-zones.tmpl"
-
-	// Parse template
-	_, filePath, _, _ := runtime.Caller(0)
-	templatePath := filepath.Dir(filePath) + "/templates/" + templateName
-	t, err := template.New(templateName).ParseFiles(templatePath)
-	if err != nil {
-		return nil, errors.New("Failed to parse template: " + err.Error())
-	}
-
-	// Execute the template for each zone and store output in map
-	var buf bytes.Buffer
-	zs := struct {
-		Zones []Zone
-	}{
-		Zones: zones}
-	err = t.Execute(&buf, zs)
-	if err != nil {
-		return nil, errors.New("Failed to render template: " + err.Error())
-	}
-
-	// Store the rendered content for each zone in the output map
-	zoneOutputs[fileName] = buf.String()
-
-	// Render all zones using a template and store the output in a map
-	for _, zone := range zones {
-		// Parse template
-		_, filePath, _, _ := runtime.Caller(0)
-		templatePath := filepath.Dir(filePath) + "/templates/bind-zone.tmpl"
-		t, err := template.New("bind-zone.tmpl").ParseFiles(templatePath)
-		if err != nil {
-			return nil, errors.New("Failed to parse template: " + err.Error())
-		}
-
-		// Execute the template for each zone and store output in map
-		var buf bytes.Buffer
-		err = t.Execute(&buf, zone)
-		if err != nil {
-			return nil, errors.New("Failed to render template: " + err.Error())
-		}
-
-		// Store the rendered content for each zone in the output map
-		zoneOutputs[zone.Name] = buf.String()
-	}
-
-	return zoneOutputs, nil
 }

@@ -106,15 +106,21 @@ func (r *Record) Create(newRecord Record) error {
 // Returns:
 // - error: An error if the update fails.
 func (r *Record) Update(newRecord Record) error {
-	query := "UPDATE bind_dns.records SET type = $1, host = $2, content = $3, ttl = $4, add_ptr = $5, modified_at = $6, staging = TRUE WHERE uuid = $7"
+	query := "UPDATE bind_dns.records SET type = $1, host = $2, content = $3, ttl = $4, add_ptr = $5, created_at = $6, modified_at = $7, staging = TRUE WHERE uuid = $8"
 	stmt, err := r.db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	result, err := stmt.Exec(newRecord.Type, newRecord.Host, newRecord.Content, newRecord.TTL, newRecord.AddPTR, time.Now().Unix(), newRecord.UUID)
+	newRecord.ModifiedAt = uint64(time.Now().Unix())
 
+	// check if record is new
+	if newRecord.Staging && newRecord.CreatedAt == newRecord.ModifiedAt {
+		newRecord.CreatedAt = newRecord.ModifiedAt
+	}
+
+	result, err := stmt.Exec(newRecord.Type, newRecord.Host, newRecord.Content, newRecord.TTL, newRecord.AddPTR, newRecord.CreatedAt, newRecord.ModifiedAt, newRecord.UUID)
 	if err != nil {
 		return err
 	}
