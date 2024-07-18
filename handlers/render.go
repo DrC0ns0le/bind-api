@@ -10,7 +10,7 @@ import (
 func GetRendersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	renderMap, err := render.PreviewZoneRender(bd)
+	renderMap, err := render.PreviewZoneRender()
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,

@@ -11,13 +11,17 @@ import (
 	_ "github.com/DrC0ns0le/bind-api/commit"
 )
 
-var bd *rdb.BindData
-
 func main() {
 
-	bd = &rdb.BindData{}
-	bd.Init("10.2.1.2", 5432, "postgres", "jack2001", "bind_dns")
-	handlers.Init(bd)
+	// Connect to the database
+	dbConfig := rdb.DBConfig{
+		Host:     "10.2.1.2",
+		Port:     5432,
+		User:     "postgres",
+		Password: "jack2001",
+		DBName:   "bind_dns",
+	}
+	rdb.Init(dbConfig)
 
 	mux := http.NewServeMux()
 
@@ -50,16 +54,16 @@ func main() {
 	mux.Handle("POST /api/v1/staging", middlewareChain(handlers.ApplyStagingHandler))
 
 	// Health check
-	mux.Handle("GET /health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /api/v1/health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})))
 
 	// Catch all
-	mux.Handle("/", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/v1/", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	})))
 
-	const listenAddr = "0.0.0.0:8090"
+	const listenAddr = "0.0.0.0:9174"
 
 	server := &http.Server{
 		Addr:    listenAddr,

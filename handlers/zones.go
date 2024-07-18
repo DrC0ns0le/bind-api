@@ -11,14 +11,15 @@ import (
 )
 
 type Zone struct {
-	ID         uint32 `json:"-"`
-	UUID       string `json:"uuid"`
-	Name       string `json:"name"`
-	CreatedAt  uint64 `json:"created_at"`
-	ModifiedAt uint64 `json:"modified_at"`
-	DeletedAt  uint64 `json:"deleted_at"`
-	Staging    bool   `json:"staging"`
-	SOA        SOA    `json:"soa,omitempty"`
+	ID         uint32   `json:"-"`
+	UUID       string   `json:"uuid"`
+	Name       string   `json:"name"`
+	CreatedAt  uint64   `json:"created_at"`
+	ModifiedAt uint64   `json:"modified_at"`
+	DeletedAt  uint64   `json:"deleted_at"`
+	Staging    bool     `json:"staging"`
+	SOA        SOA      `json:"soa,omitempty"`
+	Tags       []string `json:"tags"`
 }
 
 type SOA struct {
@@ -36,7 +37,7 @@ type Zones []Zone
 func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	zones, err := bd.Zones.Get()
+	zones, err := (&rdb.Zone{}).Get()
 
 	if err != nil {
 		log.Fatal(err)
@@ -76,14 +77,13 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract zone UUID from URL
-	zoneUUID := r.PathValue("zone_uuid")
+	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	zone, err := bd.Zones.Select(zoneUUID)
-	if err != nil {
+	if err := zone.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Could not retrieve zone " + zoneUUID,
+			Message: "Could not retrieve zone " + zone.UUID,
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -158,27 +158,26 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	uuid5 := uuid.NewSHA1(dnsNamespaceUUID, []byte(requestData.Name)).String()
 
 	// Check if the zone already exists
-	_, err = bd.Zones.Select(uuid5)
-	if err == nil {
-		errorMsg := responseBody{
-			Code:    2,
-			Message: "Zone already exists",
-			Data:    nil,
+	if err := (&rdb.Zone{UUID: uuid5}).Find(); err != nil {
+		if err == sql.ErrNoRows {
+			errorMsg := responseBody{
+				Code:    2,
+				Message: "Zone already exists",
+				Data:    nil,
+			}
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(errorMsg)
+			return
+		} else {
+			errorMsg := responseBody{
+				Code:    3,
+				Message: "Error checking if zone exists",
+				Data:    err.Error(),
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(errorMsg)
+			return
 		}
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(errorMsg)
-		return
-	}
-
-	if err != sql.ErrNoRows {
-		errorMsg := responseBody{
-			Code:    3,
-			Message: "Error checking if zone exists",
-			Data:    err.Error(),
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(errorMsg)
-		return
 	}
 
 	newZone := rdb.Zone{
@@ -195,7 +194,7 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the zone
-	err = bd.Zones.Create(newZone)
+	err = newZone.Create()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -211,14 +210,13 @@ func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract zone UUID from URL
-	zoneUUID := r.PathValue("zone_uuid")
+	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	zone, err := bd.Zones.Select(zoneUUID)
-	if err != nil {
+	if err := zone.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Zone of UUID" + zoneUUID + " not found",
+			Message: "Zone of UUID" + zone.UUID + " not found",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -231,8 +229,7 @@ func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		SOA  SOA    `json:"soa"`
 	}
-	err = json.NewDecoder(r.Body).Decode(&requestData)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Invalid request body",
@@ -270,11 +267,10 @@ func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the zone
-	err = bd.Zones.Update(zone)
-	if err != nil {
+	if err := zone.Update(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Failed to update zone of UUID" + zoneUUID,
+			Message: "Failed to update zone of UUID" + zone.UUID,
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -296,14 +292,13 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract zone UUID from URL
-	zoneUUID := r.PathValue("zone_uuid")
+	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	zone, err := bd.Zones.Select(zoneUUID)
-	if err != nil {
+	if err := zone.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Zone of UUID" + zoneUUID + " not found",
+			Message: "Zone of UUID" + zone.UUID + " not found",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -312,11 +307,10 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute the delete query
-	err = bd.Zones.Delete(zoneUUID)
-	if err != nil {
+	if err := zone.Delete(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
-			Message: "Failed to delete zone of UUID" + zoneUUID,
+			Message: "Failed to delete zone of UUID" + zone.UUID,
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusInternalServerError)

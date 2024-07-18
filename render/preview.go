@@ -6,14 +6,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"text/template"
-
-	"github.com/DrC0ns0le/bind-api/rdb"
 )
 
-func PreviewZoneRender(_bd *rdb.BindData) (map[string]string, error) {
+func PreviewZoneRender() (map[string]string, error) {
 
 	// Create all zones
-	zones, err := createZones(_bd)
+	zones, err := createZones()
 	if err != nil {
 		return nil, err
 	}

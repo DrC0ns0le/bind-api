@@ -1,30 +1,44 @@
 package rdb
 
 import (
+	"database/sql"
+	"fmt"
 	"log"
 )
 
-type BindData struct {
-	DB
-	Zones   Zone
-	Records Record
-	Configs Config
+var db *sql.DB
+
+type DBConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
 }
 
-func (bd *BindData) Init(host string, port int, user, password, dbname string) {
+func Init(config DBConfig) {
 
 	// Connect to the database
-	if err := bd.Connect(host, port, user, password, dbname, "disable"); err != nil {
+	if err := connect(config.Host, config.Port, config.User, config.Password, config.DBName, "disable"); err != nil {
 		log.Fatal(err)
 	}
 
 	// Test the connection
-	if err := bd.Ping(); err != nil {
+	if err := db.Ping(); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("Connected to the database successfully.\n")
+}
 
-	bd.Configs = Config{db: bd.db}
-	bd.Zones = Zone{db: bd.db}
-	bd.Records = Record{db: bd.db}
+// Connect establishes a connection to the database
+func connect(host string, port int, user, password, dbname string, sslmode string) error {
+	dbinfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
+
+	postgres, err := sql.Open("postgres", dbinfo)
+	if err != nil {
+		return err
+	}
+	db = postgres
+	return nil
 }

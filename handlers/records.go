@@ -10,18 +10,19 @@ import (
 )
 
 type Record struct {
-	ID         uint32 `json:"-"`
-	UUID       string `json:"uuid"`
-	Type       string `json:"type"`
-	Host       string `json:"host"`
-	Content    string `json:"content"`
-	TTL        uint16 `json:"ttl"`
-	AddPTR     bool   `json:"add_ptr"`
-	CreatedAt  uint64 `json:"created_at"`
-	ModifiedAt uint64 `json:"modified_at"`
-	DeletedAt  uint64 `json:"deleted_at"`
-	ZoneUUID   string `json:"-"`
-	Staging    bool   `json:"staging"`
+	ID         uint32   `json:"-"`
+	UUID       string   `json:"uuid"`
+	Type       string   `json:"type"`
+	Host       string   `json:"host"`
+	Content    string   `json:"content"`
+	TTL        uint16   `json:"ttl"`
+	AddPTR     bool     `json:"add_ptr"`
+	CreatedAt  uint64   `json:"created_at"`
+	ModifiedAt uint64   `json:"modified_at"`
+	DeletedAt  uint64   `json:"deleted_at"`
+	ZoneUUID   string   `json:"-"`
+	Staging    bool     `json:"staging"`
+	Tags       []string `json:"tags"`
 }
 
 type Records []Record
@@ -35,7 +36,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract zone UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
 
-	records, err := bd.Records.Get(zoneUUID)
+	records, err := (&rdb.Record{}).Get(zoneUUID)
 
 	if err != nil {
 		errorMsg := responseBody{
@@ -62,6 +63,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 			ModifiedAt: record.ModifiedAt,
 			DeletedAt:  record.DeletedAt,
 			Staging:    record.Staging,
+			Tags:       strings.Split(record.Tags, ", "),
 		}
 		R = append(R, temp)
 	}
@@ -79,24 +81,10 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Extract record UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
-	recordUUID := r.PathValue("record_uuid")
+	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	record, err := bd.Records.Select(recordUUID)
-
-	R := Record{
-		UUID:       record.UUID,
-		Type:       record.Type,
-		Host:       record.Host,
-		Content:    record.Content,
-		TTL:        record.TTL,
-		CreatedAt:  record.CreatedAt,
-		ModifiedAt: record.ModifiedAt,
-		DeletedAt:  record.DeletedAt,
-		Staging:    record.Staging,
-	}
-
-	if err != nil {
+	if err := record.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -106,12 +94,11 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
-
 	if record.ZoneUUID != zoneUUID {
 		errorMsg := responseBody{
 			Code:    2,
 			Message: "Record found, but zone does not match",
-			Data:    map[string]string{"zone_uuid": record.ZoneUUID, "record_uuid": recordUUID},
+			Data:    map[string]string{"zone_uuid": record.ZoneUUID, "record_uuid": record.UUID},
 		}
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(errorMsg)
@@ -121,7 +108,18 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 	responseBody := responseBody{
 		Code:    0,
 		Message: "Record retrieved successfully",
-		Data:    R,
+		Data: Record{
+			UUID:       record.UUID,
+			Type:       record.Type,
+			Host:       record.Host,
+			Content:    record.Content,
+			TTL:        record.TTL,
+			CreatedAt:  record.CreatedAt,
+			ModifiedAt: record.ModifiedAt,
+			DeletedAt:  record.DeletedAt,
+			Staging:    record.Staging,
+			Tags:       strings.Split(record.Tags, ", "),
+		},
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responseBody)
@@ -131,11 +129,10 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract record UUID from URL
-	zoneUUID := r.PathValue("zone_uuid")
+	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	_, err := bd.Zones.Select(zoneUUID)
-	if err != nil {
+	if err := zone.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone not found",
@@ -148,18 +145,19 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var requestData struct {
-		Type    string `json:"type"`
-		Host    string `json:"host"`
-		Content string `json:"content"`
-		TTL     uint16 `json:"ttl"`
-		AddPTR  bool   `json:"add_ptr"`
+		Type    string   `json:"type"`
+		Host    string   `json:"host"`
+		Content string   `json:"content"`
+		TTL     uint16   `json:"ttl"`
+		AddPTR  bool     `json:"add_ptr"`
+		Tags    []string `json:"tags"`
 	}
-	err = json.NewDecoder(r.Body).Decode(&requestData)
-	missingFields := []string{}
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	} else if requestData.Type == "" {
+	}
+	var missingFields []string
+	if requestData.Type == "" {
 		missingFields = append(missingFields, "type")
 	} else if requestData.Host == "" {
 		missingFields = append(missingFields, "host")
@@ -192,13 +190,13 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 			return requestData.TTL
 		}(),
 		AddPTR:   requestData.AddPTR,
-		ZoneUUID: zoneUUID,
+		ZoneUUID: zone.UUID,
 		Staging:  true,
+		Tags:     strings.Join(requestData.Tags, ", "),
 	}
 
 	// Create the record
-	err = bd.Records.Create(newRecord)
-	if err != nil {
+	if err := newRecord.Create(); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
 			Message: "Faild to create record in database",
@@ -223,12 +221,10 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Extract record UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
-	recordUUID := r.PathValue("record_uuid")
+	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	record, err := bd.Records.Select(recordUUID)
-
-	if err != nil {
+	if err := record.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -243,7 +239,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		errorMsg := responseBody{
 			Code:    2,
 			Message: "Record found, but zone does not match",
-			Data:    map[string]string{"zone_uuid": record.ZoneUUID, "record_uuid": recordUUID},
+			Data:    map[string]string{"zone_uuid": record.ZoneUUID, "record_uuid": record.UUID},
 		}
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(errorMsg)
@@ -252,14 +248,14 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var requestData struct {
-		Type    string `json:"type"`
-		Host    string `json:"host"`
-		Content string `json:"content"`
-		TTL     uint16 `json:"ttl"`
-		AddPTR  bool   `json:"add_ptr"`
+		Type    string   `json:"type"`
+		Host    string   `json:"host"`
+		Content string   `json:"content"`
+		TTL     uint16   `json:"ttl"`
+		AddPTR  bool     `json:"add_ptr"`
+		Tags    []string `json:"tags"`
 	}
-	err = json.NewDecoder(r.Body).Decode(&requestData)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
 			Message: "Unable to parse request body",
@@ -271,23 +267,38 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update record fields if provided in request
+	newRecord := record
 	if requestData.Type != "" {
-		record.Type = requestData.Type
+		newRecord.Type = requestData.Type
 	}
 	if requestData.Host != "" {
-		record.Host = requestData.Host
+		newRecord.Host = requestData.Host
 	}
 	if requestData.Content != "" {
-		record.Content = requestData.Content
+		newRecord.Content = requestData.Content
 	}
 	if requestData.TTL != 0 {
-		record.TTL = requestData.TTL
+		newRecord.TTL = requestData.TTL
 	}
-	record.AddPTR = requestData.AddPTR
+	if requestData.Tags != nil {
+		newRecord.Tags = strings.Join(requestData.Tags, ", ")
+	}
+	newRecord.AddPTR = requestData.AddPTR
+
+	// Check if theres a need to update
+	if newRecord == record {
+		errorMsg := responseBody{
+			Code:    4,
+			Message: "No changes found, nothing to update",
+			Data:    nil,
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
 
 	// Update the record
-	err = bd.Records.Update(record)
-	if err != nil {
+	if err := record.Update(); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
 			Message: "Faild to update record in database",
@@ -313,12 +324,10 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Extract record UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
-	recordUUID := r.PathValue("record_uuid")
+	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	record, err := bd.Records.Select(recordUUID)
-
-	if err != nil {
+	if err := record.Find(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -341,12 +350,10 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete record from database
-	err = bd.Records.Delete(recordUUID)
-
-	if err != nil {
+	if err := record.Delete(); err != nil {
 		errorMsg := responseBody{
 			Code:    2,
-			Message: "Failed to delete record of UUID" + recordUUID,
+			Message: "Failed to delete record of UUID" + record.UUID + " from database",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusInternalServerError)

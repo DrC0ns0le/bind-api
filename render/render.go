@@ -3,9 +3,11 @@ package render
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -13,7 +15,16 @@ import (
 	"github.com/DrC0ns0le/bind-api/rdb"
 )
 
-const outputDir = "output"
+const (
+	outputDir = "output"
+)
+
+var (
+	// PTR errors
+	ErrUnsupportedRecordType = errors.New("Unsupported record type:")
+	ErrUnsupportedIPv4       = errors.New("Unsupported IPv4 address:")
+	ErrUnsupportedIPv6       = errors.New("Unsupported IPv6 address:")
+)
 
 type SOA struct {
 	PrimaryNS  string
@@ -39,7 +50,7 @@ type Zone struct {
 	SOA     SOA
 }
 
-func createZones(_bd *rdb.BindData) ([]Zone, error) {
+func createZones() ([]Zone, error) {
 	var ZS []Zone
 	rDNS := make(map[string][]Record)
 
@@ -55,13 +66,13 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 		})
 	}
 
-	zs, err := _bd.Zones.Get()
+	zs, err := (&rdb.Zone{}).Get()
 	if err != nil {
 		return ZS, err
 	}
 
 	for _, z := range zs {
-		rs, err := _bd.Records.Get(z.UUID)
+		rs, err := (&rdb.Record{}).Get(z.UUID)
 		if err != nil {
 			return ZS, err
 		}
@@ -69,10 +80,15 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 		var RS []Record
 		for _, r := range rs {
 			RS = append(RS, Record{
-				Type:    r.Type,
-				Host:    r.Host,
-				Content: r.Content,
-				TTL:     r.TTL,
+				Type: r.Type,
+				Host: r.Host,
+				Content: func() string {
+					if r.Type == "CNAME" {
+						return r.Content + "."
+					}
+					return r.Content
+				}(),
+				TTL: r.TTL,
 			})
 
 			// Create record for reverse lookup
@@ -84,14 +100,24 @@ func createZones(_bd *rdb.BindData) ([]Zone, error) {
 					} else if parts[0] == "192" && parts[1] == "168" {
 						addReverseDNS(z, r, &rDNS, "168.192.in-addr.arpa")
 					} else if parts[0] == "172" {
-						addReverseDNS(z, r, &rDNS, fmt.Sprintf("%s.%s.in-addr.arpa", parts[1], parts[0]))
+						val, err := strconv.Atoi(parts[1])
+						if err != nil {
+							return nil, err
+						}
+						if val >= 16 && val <= 31 {
+							addReverseDNS(z, r, &rDNS, fmt.Sprintf("%s.172.in-addr.arpa", parts[1]))
+						} else {
+							return nil, fmt.Errorf("%w: %s not within RFC1918 range", ErrUnsupportedIPv4, r.Content)
+						}
 					} else {
-						return ZS, errors.New("unsupported reverse IPv4 address")
+						return nil, fmt.Errorf("%w: %s", ErrUnsupportedIPv4, r.Content)
 					}
 				} else if r.Type == "AAAA" {
 					parts := strings.Split(r.Content, ":")
 					if parts[0] == "fdac" {
 						addReverseDNS(z, r, &rDNS, "d.f.ip6.arpa")
+					} else if strings.Split(parts[0], "")[0] == "2" {
+						addReverseDNS(z, r, &rDNS, "2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa")
 					}
 				}
 			}
@@ -172,9 +198,12 @@ func reverseIPv4(s string) string {
 }
 
 func reverseIPv6(s string) string {
-	// Remove colons and reverse each nibble
-	s = strings.ReplaceAll(s, ":", "")
-	runes := []rune(s)
+	ip := net.ParseIP(s)
+	var ipString strings.Builder
+	for _, octet := range ip {
+		ipString.WriteString(fmt.Sprintf("%02x", octet))
+	}
+	runes := []rune(ipString.String())
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
 		runes[i], runes[j] = runes[j], runes[i]
 	}
@@ -182,6 +211,13 @@ func reverseIPv6(s string) string {
 	return strings.Join(strings.Split(string(runes), ""), ".")
 }
 
+// renderNamedZones renders the named zones based on the provided Zone slice.
+//
+// Parameters:
+// - zones: a slice of Zone objects containing the zones to be rendered.
+// Returns:
+// - string: the path of the created configuration file.
+// - error: an error if any occurred during the rendering process.
 func renderNamedZones(zones []Zone) (string, error) {
 	const fileName = "named.conf.zones"
 	const templateName = "bind-named-zones.tmpl"
@@ -228,6 +264,20 @@ func renderNamedZones(zones []Zone) (string, error) {
 	return path, nil
 }
 
+// renderZone renders a Zone object into a configuration file.
+//
+// It parses a template file located at "templates/bind-zone.tmpl" relative to the current file.
+// It removes all files in the "outputDir" directory except for the "outputDir" directory itself,
+// if they start with the same prefix as the Zone's name.
+// It creates a file with the name "<zone.Name>.conf" in the "outputDir" directory and writes the
+// rendered template into it.
+//
+// Parameters:
+// - zone: the Zone object to be rendered.
+//
+// Returns:
+// - string: the path of the created configuration file.
+// - error: an error if any occurred during the rendering process.
 func renderZone(zone Zone) (string, error) {
 	// Parse template
 	_, filePath, _, _ := runtime.Caller(0)
@@ -285,10 +335,10 @@ func renderZone(zone Zone) (string, error) {
 	return path, nil
 }
 
-func RenderZonesTemplate(_bd *rdb.BindData) error {
+func RenderZonesTemplate() error {
 
 	// Create all zones
-	zs, err := createZones(_bd)
+	zs, err := createZones()
 	if err != nil {
 		return err
 	}
@@ -308,7 +358,7 @@ func RenderZonesTemplate(_bd *rdb.BindData) error {
 	}
 
 	// Commit all changes
-	err = _bd.Records.CommitAll()
+	err = (&rdb.Record{}).CommitAll()
 	if err != nil {
 		return err
 	}

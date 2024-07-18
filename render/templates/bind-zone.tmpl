@@ -20,5 +20,5 @@ $ORIGIN {{.Name}}.  ; base domain-name
 ns      IN      A       10.224.8.59
 
 {{range $records}}
-{{- .Host}} IN {{.Type}} {{.Content}}
+{{- .Host}} {{.TTL}} IN {{.Type}} {{.Content}}
 {{end}}

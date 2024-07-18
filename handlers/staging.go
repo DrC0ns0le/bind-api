@@ -3,8 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/DrC0ns0le/bind-api/commit"
+	"github.com/DrC0ns0le/bind-api/rdb"
 	"github.com/DrC0ns0le/bind-api/render"
 )
 
@@ -39,7 +41,8 @@ func GetStagingHandler(w http.ResponseWriter, r *http.Request) {
 			Records []Record `json:"records"`
 		}{
 			Zones:   Z,
-			Records: R},
+			Records: R,
+		},
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
@@ -49,7 +52,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Render all zones
-	err := render.RenderZonesTemplate(bd)
+	err := render.RenderZonesTemplate()
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,
@@ -85,7 +88,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 
 func getAllStaging() ([]Zone, []Record, error) {
 	// Get all zones in staging
-	zones, err := bd.Zones.GetStaging()
+	zones, err := (&rdb.Zone{}).GetStaging()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -108,12 +111,13 @@ func getAllStaging() ([]Zone, []Record, error) {
 				Minimum:    zone.Minimum,
 				TTL:        zone.TTL,
 			},
+			Tags: strings.Split(zone.Tags, ", "),
 		}
 		Z = append(Z, temp)
 	}
 
 	// Get all records in staging
-	records, err := bd.Records.GetStaging()
+	records, err := (&rdb.Record{}).GetStaging()
 	if err != nil {
 		return nil, nil, err
 	}
