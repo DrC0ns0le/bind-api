@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -59,11 +60,16 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 			Content:    record.Content,
 			TTL:        record.TTL,
 			AddPTR:     record.AddPTR,
-			CreatedAt:  record.CreatedAt,
-			ModifiedAt: record.ModifiedAt,
-			DeletedAt:  record.DeletedAt,
-			Staging:    record.Staging,
-			Tags:       strings.Split(record.Tags, ", "),
+			CreatedAt:  uint64(record.CreatedAt.Unix()),
+			ModifiedAt: uint64(record.ModifiedAt.Unix()),
+			DeletedAt: func(t sql.NullTime) uint64 {
+				if t.Valid {
+					return uint64(t.Time.Unix())
+				}
+				return 0
+			}(record.DeletedAt),
+			Staging: record.Staging,
+			Tags:    record.Tags,
 		}
 		R = append(R, temp)
 	}
@@ -114,11 +120,16 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 			Host:       record.Host,
 			Content:    record.Content,
 			TTL:        record.TTL,
-			CreatedAt:  record.CreatedAt,
-			ModifiedAt: record.ModifiedAt,
-			DeletedAt:  record.DeletedAt,
-			Staging:    record.Staging,
-			Tags:       strings.Split(record.Tags, ", "),
+			CreatedAt:  uint64(record.CreatedAt.Unix()),
+			ModifiedAt: uint64(record.ModifiedAt.Unix()),
+			DeletedAt: func(t sql.NullTime) uint64 {
+				if t.Valid {
+					return uint64(t.Time.Unix())
+				}
+				return 0
+			}(record.DeletedAt),
+			Staging: record.Staging,
+			Tags:    record.Tags,
 		},
 	}
 	w.WriteHeader(http.StatusOK)
@@ -192,7 +203,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		AddPTR:   requestData.AddPTR,
 		ZoneUUID: zone.UUID,
 		Staging:  true,
-		Tags:     strings.Join(requestData.Tags, ", "),
+		Tags:     requestData.Tags,
 	}
 
 	// Create the record
@@ -268,25 +279,35 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Update record fields if provided in request
 	newRecord := record
+	needUpdate := false
 	if requestData.Type != "" {
-		newRecord.Type = requestData.Type
+		record.Type = requestData.Type
+		needUpdate = true
 	}
 	if requestData.Host != "" {
-		newRecord.Host = requestData.Host
+		record.Host = requestData.Host
+		needUpdate = true
 	}
 	if requestData.Content != "" {
-		newRecord.Content = requestData.Content
+		record.Content = requestData.Content
+		needUpdate = true
 	}
 	if requestData.TTL != 0 {
-		newRecord.TTL = requestData.TTL
+		record.TTL = requestData.TTL
+		needUpdate = true
 	}
-	if requestData.Tags != nil {
-		newRecord.Tags = strings.Join(requestData.Tags, ", ")
+	if len(requestData.Tags) > 0 {
+		record.Tags = requestData.Tags
+		needUpdate = true
 	}
-	newRecord.AddPTR = requestData.AddPTR
+
+	if newRecord.AddPTR != requestData.AddPTR {
+		record.AddPTR = requestData.AddPTR
+		needUpdate = true
+	}
 
 	// Check if theres a need to update
-	if newRecord == record {
+	if !needUpdate {
 		errorMsg := responseBody{
 			Code:    4,
 			Message: "No changes found, nothing to update",

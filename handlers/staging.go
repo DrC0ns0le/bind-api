@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/DrC0ns0le/bind-api/commit"
 	"github.com/DrC0ns0le/bind-api/rdb"
@@ -111,7 +111,7 @@ func getAllStaging() ([]Zone, []Record, error) {
 				Minimum:    zone.Minimum,
 				TTL:        zone.TTL,
 			},
-			Tags: strings.Split(zone.Tags, ", "),
+			Tags: zone.Tags,
 		}
 		Z = append(Z, temp)
 	}
@@ -131,10 +131,16 @@ func getAllStaging() ([]Zone, []Record, error) {
 			Host:       record.Host,
 			Content:    record.Content,
 			TTL:        record.TTL,
-			CreatedAt:  record.CreatedAt,
-			ModifiedAt: record.ModifiedAt,
-			DeletedAt:  record.DeletedAt,
-			Staging:    record.Staging,
+			CreatedAt:  uint64(record.CreatedAt.Unix()),
+			ModifiedAt: uint64(record.ModifiedAt.Unix()),
+			DeletedAt: func(t sql.NullTime) uint64 {
+				if t.Valid {
+					return uint64(t.Time.Unix())
+				}
+				return 0
+			}(record.DeletedAt),
+			Staging: record.Staging,
+			Tags:    record.Tags,
 		}
 		R = append(R, temp)
 	}

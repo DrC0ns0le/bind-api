@@ -7,18 +7,18 @@ import (
 )
 
 type Record struct {
-	UUID       string // Record UUID
-	Type       string // Record type
-	Host       string // Record host
-	Content    string // Record content
-	TTL        uint16 // Record TTL
-	AddPTR     bool   // Add PTR record
-	CreatedAt  uint64 // Record creation time
-	ModifiedAt uint64 // Record modification time
-	DeletedAt  uint64 // Record deletion time
-	ZoneUUID   string // Record's zone UUID
-	Staging    bool   // Record staging status
-	Tags       string // Record tags
+	UUID       string       // Record UUID
+	Type       string       // Record type
+	Host       string       // Record host
+	Content    string       // Record content
+	TTL        uint16       // Record TTL
+	AddPTR     bool         // Add PTR record
+	CreatedAt  time.Time    // Record creation time
+	ModifiedAt time.Time    // Record modification time
+	DeletedAt  sql.NullTime // Record deletion time
+	ZoneUUID   string       // Record's zone UUID
+	Staging    bool         // Record staging status
+	Tags       []string     // Record tags
 }
 
 // Get retrieves records from the database based on the provided zone UUID.
@@ -27,21 +27,25 @@ type Record struct {
 // - zoneUUID: The UUID of the zone to retrieve records from.
 //
 // Returns:
-// - []Record: A slice of Record structs representing the retrieved records.
-// - error: An error if the retrieval fails.
+//   - []Record: A slice of Record structs representing the retrieved records.
+//   - error: An error if the retrieval fails.
 func (r *Record) Get(zoneUUID string) ([]Record, error) {
-	rows, err := db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging, r.tags FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid = $1 AND (r.deleted_at = 0 OR r.staging = TRUE)", zoneUUID)
+	rows, err := db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid::text = $1 AND (r.deleted_at IS NULL OR r.staging = TRUE)", zoneUUID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
 	var records []Record
 	for rows.Next() {
 		var record Record
-		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.Staging, &record.Tags)
+		if err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.Staging); err != nil {
+			return nil, fmt.Errorf("failed to scan record: %w", err)
+		}
+
+		record.Tags, err = new(Tag).GetZone(record.ZoneUUID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get tags: %w", err)
 		}
 		records = append(records, record)
 	}
@@ -52,7 +56,7 @@ func (r *Record) Get(zoneUUID string) ([]Record, error) {
 //
 // It returns a slice of Record and an error if any.
 func (r *Record) GetAll() ([]Record, error) {
-	rows, err := db.Query("SELECT uuid, type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, staging, tags FROM bind_dns.records WHERE deleted_at = 0 OR staging = TRUE")
+	rows, err := db.Query("SELECT uuid, type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE deleted_at IS NULL OR staging = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +65,15 @@ func (r *Record) GetAll() ([]Record, error) {
 	var records []Record
 	for rows.Next() {
 		var record Record
-		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.ZoneUUID, &record.Staging, &record.Tags)
+		if err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.ZoneUUID, &record.Staging); err != nil {
+			return nil, err
+		}
+
+		record.Tags, err = new(Tag).GetZone(record.ZoneUUID)
 		if err != nil {
 			return nil, err
 		}
+
 		records = append(records, record)
 	}
 	return records, nil
@@ -74,17 +83,17 @@ func (r *Record) GetAll() ([]Record, error) {
 //
 // Returns an error if the insertion fails.
 func (r *Record) Create() error {
-	query := "INSERT INTO bind_dns.records (uuid, type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, staging, tags) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 0, $8, TRUE, $9)"
+	query := "INSERT INTO bind_dns.records (uuid, type, host, content, ttl, add_ptr, created_at, modified_at, zone_uuid, staging) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, TRUE)"
 	stmt, err := db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	timeNow := time.Now().Unix()
-	r.CreatedAt = uint64(timeNow)
-	r.ModifiedAt = uint64(timeNow)
-	result, err := stmt.Exec(r.UUID, r.Type, r.Host, r.Content, r.TTL, r.AddPTR, timeNow, r.ZoneUUID, r.Tags)
+	timeNow := time.Now()
+	r.CreatedAt = timeNow
+	r.ModifiedAt = timeNow
+	result, err := stmt.Exec(r.UUID, r.Type, r.Host, r.Content, r.TTL, r.AddPTR, timeNow, r.ZoneUUID)
 	if err != nil {
 		return err
 	}
@@ -98,6 +107,14 @@ func (r *Record) Create() error {
 		return sql.ErrNoRows
 	}
 
+	// add tags if any
+	if len(r.Tags) > 0 {
+		err = new(Tag).CreateRecord(r.UUID)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -105,9 +122,14 @@ func (r *Record) Create() error {
 //
 // Returns an error if the retrieval fails.
 func (r *Record) Find() error {
-	query := "SELECT type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, staging, tags FROM bind_dns.records WHERE uuid = $1 AND (deleted_at = 0 OR staging = TRUE)"
+	query := "SELECT type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, staging FROM bind_dns.records WHERE uuid::text = $1 AND (deleted_at IS NULL OR staging = TRUE)"
 	row := db.QueryRow(query, r.UUID)
-	err := row.Scan(&r.Type, &r.Host, &r.Content, &r.TTL, &r.AddPTR, &r.CreatedAt, &r.ModifiedAt, &r.DeletedAt, &r.ZoneUUID, &r.Staging, &r.Tags)
+	err := row.Scan(&r.Type, &r.Host, &r.Content, &r.TTL, &r.AddPTR, &r.CreatedAt, &r.ModifiedAt, &r.DeletedAt, &r.ZoneUUID, &r.Staging)
+	if err != nil {
+		return err
+	}
+
+	r.Tags, err = new(Tag).GetZone(r.ZoneUUID)
 	if err != nil {
 		return err
 	}
@@ -118,21 +140,21 @@ func (r *Record) Find() error {
 //
 // Returns an error if the update fails.
 func (r *Record) Update() error {
-	query := "UPDATE bind_dns.records SET type = $1, host = $2, content = $3, ttl = $4, add_ptr = $5, created_at = $6, modified_at = $7, staging = TRUE, tags = $8 WHERE uuid = $8"
+	query := "UPDATE bind_dns.records SET type = $1, host = $2, content = $3, ttl = $4, add_ptr = $5, created_at = $6, modified_at = $7, staging = TRUE WHERE uuid::text = $8"
 	stmt, err := db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	r.ModifiedAt = uint64(time.Now().Unix())
+	r.ModifiedAt = time.Now()
 
 	// check if record is new
 	if r.Staging && r.CreatedAt == r.ModifiedAt {
 		r.CreatedAt = r.ModifiedAt
 	}
 
-	result, err := stmt.Exec(r.Type, r.Host, r.Content, r.TTL, r.AddPTR, r.CreatedAt, r.ModifiedAt, r.Tags, r.UUID)
+	result, err := stmt.Exec(r.Type, r.Host, r.Content, r.TTL, r.AddPTR, r.CreatedAt, r.ModifiedAt, r.UUID)
 	if err != nil {
 		return err
 	}
@@ -145,6 +167,20 @@ func (r *Record) Update() error {
 
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
+	}
+
+	// delete tags
+	err = new(Tag).DeleteRecord(r.UUID)
+	if err != nil {
+		return err
+	}
+
+	// add tags if any
+	if len(r.Tags) > 0 {
+		err = new(Tag).CreateRecord(r.UUID)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -154,14 +190,14 @@ func (r *Record) Update() error {
 //
 // Returns an error if the deletion fails.
 func (r *Record) Delete() error {
-	query := "UPDATE bind_dns.records SET deleted_at = $1, staging = TRUE WHERE uuid = $2"
+	query := "UPDATE bind_dns.records SET deleted_at = $1, staging = TRUE WHERE uuid::text = $2"
 	stmt, err := db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	result, err := stmt.Exec(time.Now().Unix(), r.UUID)
+	result, err := stmt.Exec(time.Now(), r.UUID)
 	if err != nil {
 		return err
 	}
@@ -174,6 +210,12 @@ func (r *Record) Delete() error {
 
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
+	}
+
+	// delete tags
+	err = new(Tag).DeleteRecord(r.UUID)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -221,7 +263,7 @@ func (r *Record) CommitAll() error {
 //   - []Record: A slice of Record structs representing the retrieved records.
 //   - error: An error if the retrieval fails.
 func (r *Record) GetStaging() ([]Record, error) {
-	query := "SELECT uuid, type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid, tags FROM bind_dns.records WHERE staging = TRUE"
+	query := "SELECT uuid, type, host, content, ttl, add_ptr, created_at, modified_at, deleted_at, zone_uuid FROM bind_dns.records WHERE staging = TRUE"
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -231,11 +273,15 @@ func (r *Record) GetStaging() ([]Record, error) {
 	var records []Record
 	for rows.Next() {
 		var record Record
-		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.ZoneUUID, &record.Tags)
+		err := rows.Scan(&record.UUID, &record.Type, &record.Host, &record.Content, &record.TTL, &record.AddPTR, &record.CreatedAt, &record.ModifiedAt, &record.DeletedAt, &record.ZoneUUID)
 		if err != nil {
 			return nil, err
 		}
 		record.Staging = true
+		record.Tags, err = new(Tag).GetZone(record.ZoneUUID)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, record)
 	}
 	return records, nil

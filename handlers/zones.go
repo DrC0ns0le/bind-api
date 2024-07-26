@@ -5,21 +5,22 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/DrC0ns0le/bind-api/rdb"
 	"github.com/google/uuid"
 )
 
 type Zone struct {
-	ID         uint32   `json:"-"`
-	UUID       string   `json:"uuid"`
-	Name       string   `json:"name"`
-	CreatedAt  uint64   `json:"created_at"`
-	ModifiedAt uint64   `json:"modified_at"`
-	DeletedAt  uint64   `json:"deleted_at"`
-	Staging    bool     `json:"staging"`
-	SOA        SOA      `json:"soa,omitempty"`
-	Tags       []string `json:"tags"`
+	ID         uint32       `json:"-"`
+	UUID       string       `json:"uuid"`
+	Name       string       `json:"name"`
+	CreatedAt  time.Time    `json:"created_at"`
+	ModifiedAt time.Time    `json:"modified_at"`
+	DeletedAt  sql.NullTime `json:"deleted_at"`
+	Staging    bool         `json:"staging"`
+	SOA        SOA          `json:"soa,omitempty"`
+	Tags       []string     `json:"tags"`
 }
 
 type SOA struct {

@@ -6,20 +6,20 @@ import (
 )
 
 type Zone struct {
-	UUID       string // Zone UUID
-	Name       string // Zone name
-	CreatedAt  uint64 // Zone creation time
-	ModifiedAt uint64 // Zone modification time
-	DeletedAt  uint64 // Zone deletion time
-	Staging    bool   // Zone staging status
-	PrimaryNS  string // Zone primary NS
-	AdminEmail string // Zone admin email
-	Refresh    uint16 // Zone refresh interval
-	Retry      uint16 // Zone retry interval
-	Expire     uint32 // Zone expire interval
-	Minimum    uint16 // Zone minimum TTL
-	TTL        uint16 // Zone TTL
-	Tags       string // Zone tags
+	UUID       string       // Zone UUID
+	Name       string       // Zone name
+	CreatedAt  time.Time    // Zone creation time
+	ModifiedAt time.Time    // Zone modification time
+	DeletedAt  sql.NullTime // Zone deletion time
+	Staging    bool         // Zone staging status
+	PrimaryNS  string       // Zone primary NS
+	AdminEmail string       // Zone admin email
+	Refresh    uint16       // Zone refresh interval
+	Retry      uint16       // Zone retry interval
+	Expire     uint32       // Zone expire interval
+	Minimum    uint16       // Zone minimum TTL
+	TTL        uint16       // Zone TTL
+	Tags       []string     // Zone tags
 }
 
 // Get retrieves all zones from the database.
@@ -28,7 +28,7 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get() ([]Zone, error) {
-	rows, err := db.Query("SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, ttl,staging FROM bind_dns.zones WHERE deleted_at = 0 OR staging = TRUE")
+	rows, err := db.Query("SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, ttl,staging FROM bind_dns.zones WHERE deleted_at IS NULL OR staging = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +42,12 @@ func (z *Zone) Get() ([]Zone, error) {
 			return nil, err
 		}
 		zones = append(zones, zone)
+
+		// get tags
+		zone.Tags, err = new(Tag).GetZone(zone.UUID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return zones, nil
@@ -58,12 +64,22 @@ func (z *Zone) Create() error {
 	}
 	defer stmt.Close()
 
-	timeNow := time.Now().Unix()
-	z.CreatedAt = uint64(timeNow)
-	z.ModifiedAt = uint64(timeNow)
+	timeNow := time.Now()
+	z.CreatedAt = timeNow
+	z.ModifiedAt = timeNow
 	_, err = stmt.Exec(z.UUID, z.Name, timeNow, z.PrimaryNS, z.AdminEmail, z.Refresh, z.Retry, z.Expire, z.Minimum)
 	if err != nil {
 		return err
+	}
+
+	// add tags if any
+	if len(z.Tags) > 0 {
+		for _, tag := range z.Tags {
+			err := Tag(tag).CreateZone(z.UUID)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -95,6 +111,22 @@ func (z *Zone) Update() error {
 		return sql.ErrNoRows
 	}
 
+	// delete tags
+	err = Tag("").DeleteZone(z.UUID)
+	if err != nil {
+		return err
+	}
+
+	// add tags if any
+	if len(z.Tags) > 0 {
+		for _, tag := range z.Tags {
+			err := Tag(tag).CreateZone(z.UUID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -109,7 +141,7 @@ func (z *Zone) Delete() error {
 	}
 	defer stmt.Close()
 
-	result, err := stmt.Exec(time.Now().Unix(), z.UUID)
+	result, err := stmt.Exec(time.Now(), z.UUID)
 	if err != nil {
 		return err
 	}
@@ -124,6 +156,12 @@ func (z *Zone) Delete() error {
 		return sql.ErrNoRows
 	}
 
+	// delete tags
+	err = Tag("").DeleteZone(z.UUID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -131,9 +169,15 @@ func (z *Zone) Delete() error {
 //
 // Returns an error if the retrieval fails.
 func (z *Zone) Find() error {
-	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at = 0 OR (deleted_at != 0 AND staging = TRUE))"
+	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at IS NULL OR (deleted_at IS NOT NULL AND staging = TRUE))"
 	row := db.QueryRow(query, z.UUID)
 	err := row.Scan(&z.UUID, &z.Name, &z.CreatedAt, &z.ModifiedAt, &z.DeletedAt, &z.PrimaryNS, &z.AdminEmail, &z.Refresh, &z.Retry, &z.Expire, &z.Minimum, &z.Staging)
+	if err != nil {
+		return err
+	}
+
+	// get tags
+	z.Tags, err = new(Tag).GetZone(z.UUID)
 	if err != nil {
 		return err
 	}
@@ -156,6 +200,12 @@ func (z *Zone) GetStaging() ([]Zone, error) {
 	for rows.Next() {
 		var zone Zone
 		err := rows.Scan(&zone.UUID, &zone.Name, &zone.CreatedAt, &zone.ModifiedAt, &zone.DeletedAt, &zone.PrimaryNS, &zone.AdminEmail, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Minimum, &zone.Staging)
+		if err != nil {
+			return nil, err
+		}
+
+		// get tags
+		zone.Tags, err = new(Tag).GetZone(zone.UUID)
 		if err != nil {
 			return nil, err
 		}
