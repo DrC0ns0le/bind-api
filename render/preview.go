@@ -62,7 +62,7 @@ func PreviewZoneRender() (map[string]string, error) {
 		}
 
 		// Store the rendered content for each zone in the output map
-		zoneOutputs[zone.Name] = buf.String()
+		zoneOutputs[zone.Name+".conf"] = buf.String()
 	}
 
 	return zoneOutputs, nil
