@@ -52,8 +52,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Render all zones
-	err := render.RenderZonesTemplate()
-	if err != nil {
+	if err := render.RenderZonesTemplate(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone rendering failed",
@@ -65,11 +64,22 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Commit changes
-	err = commit.Push()
-	if err != nil {
+	if err := commit.Push(); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Unable to commit changes",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
+	// set config_status to awaiting_deployment
+	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "deployed"}).Update("awaiting_deployment"); err != nil {
+		errorMsg := responseBody{
+			Code:    1,
+			Message: "Unable to update deploy_status",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusNotFound)
