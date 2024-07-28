@@ -129,7 +129,7 @@ func (c *Config) Update(value string) error {
 		return err
 	}
 	for _, config := range configs {
-		if config.ConfigValue == value {
+		if config.ConfigValue == c.ConfigValue {
 			goto FOUND
 		}
 	}
@@ -143,7 +143,9 @@ FOUND:
 	}
 	defer stmt.Close()
 
-	result, err := stmt.Exec(value, time.Now(), c.Staging, c.ConfigKey, c.ConfigValue)
+	timeNow := time.Now()
+	c.ModifiedAt = timeNow
+	result, err := stmt.Exec(value, timeNow, c.Staging, c.ConfigKey, c.ConfigValue)
 	if err != nil {
 		return err
 	}

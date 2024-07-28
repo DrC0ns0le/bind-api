@@ -57,9 +57,13 @@ func main() {
 	// Render Zones
 	mux.Handle("GET /api/v1/render", middlewareChain(handlers.GetRendersHandler))
 
-	// Stage & Commit
+	// Stage
 	mux.Handle("GET /api/v1/staging", middlewareChain(handlers.GetStagingHandler))
 	mux.Handle("POST /api/v1/staging", middlewareChain(handlers.ApplyStagingHandler))
+
+	// Deploy
+	mux.Handle("GET /api/v1/deploy", middlewareChain(handlers.GetDeployHandler))
+	mux.Handle("POST /api/v1/deploy", middlewareChain(handlers.DeployHandler))
 
 	// Health check
 	mux.Handle("GET /api/v1/health", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

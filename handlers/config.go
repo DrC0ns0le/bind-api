@@ -150,7 +150,7 @@ func UpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config := &rdb.Config{ConfigKey: c.ConfigKey, ConfigValue: c.ConfigValue, Staging: c.Staging}
+	config := &rdb.Config{ConfigKey: c.ConfigKey, ConfigValue: c.ConfigOld, Staging: c.Staging}
 	if err = config.Update(c.ConfigValue); err != nil {
 		responseBody := responseBody{
 			Code:    2,
@@ -167,7 +167,7 @@ func UpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 		Message: "Config updated successfully",
 		Data: &Config{
 			ConfigKey:   config.ConfigKey,
-			ConfigValue: config.ConfigValue,
+			ConfigValue: c.ConfigValue,
 			Staging:     c.Staging,
 			CreatedAt:   uint64(config.CreatedAt.Unix()),
 			ModifiedAt:  uint64(config.ModifiedAt.Unix()),
