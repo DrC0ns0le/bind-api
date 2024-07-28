@@ -29,8 +29,8 @@ type Record struct {
 // Returns:
 //   - []Record: A slice of Record structs representing the retrieved records.
 //   - error: An error if the retrieval fails.
-func (r *Record) Get(zoneUUID string) ([]Record, error) {
-	rows, err := db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid::text = $1 AND (r.deleted_at IS NULL OR r.staging = TRUE)", zoneUUID)
+func (r *Record) Get() ([]Record, error) {
+	rows, err := db.Query("SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging FROM bind_dns.records AS r JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid WHERE z.uuid::text = $1 AND (r.deleted_at IS NULL OR r.staging = TRUE)", r.ZoneUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -43,7 +43,8 @@ func (r *Record) Get(zoneUUID string) ([]Record, error) {
 			return nil, fmt.Errorf("failed to scan record: %w", err)
 		}
 
-		record.Tags, err = new(Tag).GetZone(record.ZoneUUID)
+		record.Tags, err = new(Tag).GetZone(r.ZoneUUID)
+		record.ZoneUUID = r.ZoneUUID
 		if err != nil {
 			return nil, fmt.Errorf("failed to get tags: %w", err)
 		}

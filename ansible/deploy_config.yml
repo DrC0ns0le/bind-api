@@ -1,0 +1,19 @@
+---
+- name: Update and Restart BIND DNS Server
+  hosts: bind # Replace with your group of DNS servers
+  become: yes # Use sudo to run tasks as root
+  vars:
+    bind9_path: /etc/bind # Path to the BIND directory on target host(s)
+    git_repo: "git@github.com:DrC0ns0le/internal-bind-config.git"
+
+  tasks:
+    - name: Pull latest changes from Git repository for BIND config files
+      ansible.builtin.git:
+        repo: "{{ git_repo }}" # Use the variable containing the new Git URL
+        dest: "{{ bind9_path }}"
+        update: yes
+
+    - name: Restart BIND DNS Server service
+      ansible.builtin.systemd:
+        name: bind9
+        state: restarted

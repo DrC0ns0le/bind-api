@@ -26,7 +26,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	middlewareChain := func(handler func(http.ResponseWriter, *http.Request)) http.Handler {
-		return middleware.LoggerMiddleware(middleware.CorsHandler(http.HandlerFunc(handler)))
+		return middleware.RESTMiddleware(middleware.LoggerMiddleware(middleware.CorsHandler(http.HandlerFunc(handler))))
 	}
 
 	// CRUD for zones
@@ -46,6 +46,14 @@ func main() {
 	mux.Handle("PATCH /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.UpdateRecordHandler))
 	mux.Handle("DELETE /api/v1/zones/{zone_uuid}/records/{record_uuid}", middlewareChain(handlers.DeleteRecordHandler))
 
+	//CRUD for configs
+	mux.Handle("GET /api/v1/configs", middlewareChain(handlers.GetConfigsHandler))
+	mux.Handle("GET /api/v1/configs/{config_key}", middlewareChain(handlers.GetConfigHandler))
+	mux.Handle("POST /api/v1/configs", middlewareChain(handlers.CreateConfigHandler))
+	mux.Handle("PUT /api/v1/configs", middlewareChain(handlers.UpdateConfigHandler))
+	mux.Handle("PATCH /api/v1/configs", middlewareChain(handlers.UpdateConfigHandler))
+	mux.Handle("DELETE /api/v1/configs", middlewareChain(handlers.DeleteConfigHandler))
+
 	// Render Zones
 	mux.Handle("GET /api/v1/render", middlewareChain(handlers.GetRendersHandler))
 
@@ -59,9 +67,7 @@ func main() {
 	})))
 
 	// Catch all
-	mux.Handle("/api/v1/", middleware.CorsHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	})))
+	mux.Handle("/api/v1/", middleware.RESTMiddleware(middleware.CorsHandler(http.HandlerFunc(handlers.CatchAllHandler))))
 
 	const listenAddr = "0.0.0.0:9174"
 

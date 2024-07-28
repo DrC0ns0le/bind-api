@@ -37,7 +37,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract zone UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
 
-	records, err := (&rdb.Record{}).Get(zoneUUID)
+	records, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get()
 
 	if err != nil {
 		errorMsg := responseBody{

@@ -29,7 +29,7 @@ func GetRendersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for f, _ := range BeforeAfterMap.After {
+	for f := range BeforeAfterMap.After {
 		// find the file in the output directory
 		files, err := os.ReadDir("output")
 		if err != nil {
