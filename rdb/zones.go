@@ -132,7 +132,7 @@ func (z *Zone) Update(ctx context.Context) error {
 
 	// delete tags
 	err = Tag("").DeleteZone(ctx, z.UUID)
-	if err != nil {
+	if err != nil && err != ErrTagNotFound {
 		return err
 	}
 
@@ -179,12 +179,6 @@ func (z *Zone) Delete(ctx context.Context) error {
 
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
-	}
-
-	// delete tags
-	err = Tag("").DeleteZone(ctx, z.UUID)
-	if err != nil {
-		return err
 	}
 
 	return tx.Commit()

@@ -278,7 +278,6 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update record fields if provided in request
-	newRecord := record
 	needUpdate := false
 	if requestData.Type != "" {
 		record.Type = requestData.Type
@@ -301,7 +300,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		needUpdate = true
 	}
 
-	if newRecord.AddPTR != requestData.AddPTR {
+	if record.AddPTR != requestData.AddPTR {
 		record.AddPTR = requestData.AddPTR
 		needUpdate = true
 	}

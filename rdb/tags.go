@@ -3,9 +3,12 @@ package rdb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 type Tag string
+
+var ErrTagNotFound error = fmt.Errorf("tags not found")
 
 func (t Tag) String() string {
 	return string(t)
@@ -108,10 +111,21 @@ func (t Tag) DeleteRecord(ctx context.Context, recordUUID string) error {
 	}
 	defer tx.Rollback()
 
+	// check if record exists
+	var count int
+	query := "SELECT COUNT(*) FROM bind_dns.tags WHERE record_uuid::text = $1"
+	err = tx.QueryRowContext(ctx, query, recordUUID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrTagNotFound
+	}
+
 	var result sql.Result
 	if t.String() == "" {
 		// delete all tags
-		query := "DELETE FROM bind_dns.tags WHERE record_uuid = $1"
+		query := "DELETE FROM bind_dns.tags WHERE record_uuid::text = $1"
 		stmt, err := tx.PrepareContext(ctx, query)
 		if err != nil {
 			return err
@@ -123,7 +137,7 @@ func (t Tag) DeleteRecord(ctx context.Context, recordUUID string) error {
 		}
 	} else {
 		// delete specific tag
-		query := "DELETE FROM bind_dns.tags WHERE record_uuid = $1 AND tag = $2"
+		query := "DELETE FROM bind_dns.tags WHERE record_uuid::text = $1 AND tag = $2"
 		stmt, err := tx.PrepareContext(ctx, query)
 		if err != nil {
 			return err
@@ -160,6 +174,17 @@ func (t Tag) DeleteZone(ctx context.Context, zoneUUID string) error {
 		return err
 	}
 	defer tx.Rollback()
+
+	// check if zone exists
+	var count int
+	query := "SELECT COUNT(*) FROM bind_dns.tags WHERE zone_uuid::text = $1"
+	err = tx.QueryRowContext(ctx, query, zoneUUID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrTagNotFound
+	}
 
 	var result sql.Result
 	if t.String() == "" {

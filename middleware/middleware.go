@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -39,18 +42,53 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 func LoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("###")
-		log.Printf("Received request: %s %s", r.Method, r.URL.Path)
-		log.Printf("Request from: %s", r.RemoteAddr)
-		// log.Printf("Request headers: %v", r.Header)
-		for k, v := range r.Header {
-			if k == "X-Forwarded-For" {
-				log.Printf("Forwarded for: %s", net.JoinHostPort(v[0], r.Header["X-Forwarded-Port"][0]))
+		buf := new(bytes.Buffer)
+		fmt.Fprintf(buf, "%s %s %s", net.JoinHostPort(r.Header["X-Forwarded-For"][0], r.Header["X-Forwarded-Port"][0]), r.Method, r.URL.Path)
+
+		if r.Method != "GET" && r.Header.Get("Content-Type") == "application/json" {
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading request body: %v", err)
+			} else {
+				fmt.Fprintf(buf, " %s", string(bodyBytes))
+				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}
 		}
-		// log.Printf("Request body: %s", r.Body)
-		next.ServeHTTP(w, r)
+
+		rbw := &responseBodyWriter{
+			ResponseWriter: w,
+			body:           &bytes.Buffer{},
+			status:         http.StatusOK,
+		}
+
+		next.ServeHTTP(rbw, r)
+
+		fmt.Fprintf(buf, " %d", rbw.status)
+
+		// If status is not 200, log additional information
+		if rbw.status != http.StatusOK {
+			fmt.Fprintf(buf, " %s", rbw.body.String())
+		}
+
+		log.Println(buf.String())
 	})
+}
+
+// customResponseWriter wraps http.ResponseWriter to capture the status code
+type responseBodyWriter struct {
+	http.ResponseWriter
+	body   *bytes.Buffer
+	status int
+}
+
+func (w *responseBodyWriter) Write(b []byte) (int, error) {
+	w.body.Write(b)
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *responseBodyWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func MetricsMiddleware(next http.Handler) http.Handler {

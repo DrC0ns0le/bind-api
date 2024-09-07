@@ -173,11 +173,12 @@ func (r *Record) Update(ctx context.Context) error {
 	}
 	defer stmt.Close()
 
-	r.ModifiedAt = time.Now()
-
 	// check if record is new
 	if r.Staging && r.CreatedAt == r.ModifiedAt {
+		r.ModifiedAt = time.Now()
 		r.CreatedAt = r.ModifiedAt
+	} else {
+		r.ModifiedAt = time.Now()
 	}
 
 	result, err := stmt.ExecContext(ctx, r.Type, r.Host, r.Content, r.TTL, r.AddPTR, r.CreatedAt, r.ModifiedAt, r.UUID)
@@ -197,7 +198,7 @@ func (r *Record) Update(ctx context.Context) error {
 
 	// delete tags
 	err = new(Tag).DeleteRecord(ctx, r.UUID)
-	if err != nil {
+	if err != nil && err != ErrTagNotFound {
 		return err
 	}
 
@@ -242,12 +243,6 @@ func (r *Record) Delete(ctx context.Context) error {
 
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
-	}
-
-	// delete tags
-	err = new(Tag).DeleteRecord(ctx, r.UUID)
-	if err != nil {
-		return err
 	}
 
 	return tx.Commit()
