@@ -76,6 +76,12 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Commit all changes
+	err := (&rdb.Record{}).CommitAll(r.Context())
+	if err != nil {
+		return
+	}
+
 	// set config_status to awaiting_deployment
 	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "deployed"}).Update(r.Context(), "awaiting_deployment"); err != nil {
 		errorMsg := responseBody{

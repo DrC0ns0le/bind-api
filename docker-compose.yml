@@ -1,0 +1,9 @@
+services:
+  bind:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - ${LISTEN_PORT}:${LISTEN_PORT}
+    env_file:
+      - .env

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 
@@ -32,6 +33,7 @@ func DeployConfig(ctx context.Context) (string, error) {
 
 	output, err := exec.CommandContext(ctx, "ansible-playbook", "-i", inventory, playbook).Output()
 	if err != nil {
+		log.Printf("output: %s", string(output))
 		return string(output), fmt.Errorf("failed to run ansible playbook: %w", err)
 	}
 

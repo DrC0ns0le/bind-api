@@ -13,6 +13,7 @@
         repo: "{{ git_repo }}" # Use the variable containing the new Git URL
         dest: "{{ bind9_path }}"
         update: true
+        force: true
 
     - name: Restart BIND DNS Server service
       ansible.builtin.systemd:

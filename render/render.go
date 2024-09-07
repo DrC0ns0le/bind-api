@@ -358,11 +358,5 @@ func RenderZonesTemplate(ctx context.Context) error {
 		}
 	}
 
-	// Commit all changes
-	err = (&rdb.Record{}).CommitAll(ctx)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }

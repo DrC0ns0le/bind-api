@@ -23,3 +23,8 @@ go.work
 output/
 depreciated/
 inventory.ini
+
+# GO build binary
+main
+
+.env

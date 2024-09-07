@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 )
 
 func CorsHandler(next http.Handler) http.Handler {
@@ -42,6 +43,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 func LoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		buf := new(bytes.Buffer)
 		fmt.Fprintf(buf, "%s %s %s", net.JoinHostPort(r.Header["X-Forwarded-For"][0], r.Header["X-Forwarded-Port"][0]), r.Method, r.URL.Path)
 
@@ -65,10 +67,12 @@ func LoggerMiddleware(next http.Handler) http.Handler {
 
 		fmt.Fprintf(buf, " %d", rbw.status)
 
-		// If status is not 200, log additional information
-		if rbw.status != http.StatusOK {
+		// If status is not 2xx, log additional information
+		if rbw.status >= 300 || rbw.status < 200 {
 			fmt.Fprintf(buf, " %s", rbw.body.String())
 		}
+
+		fmt.Fprintf(buf, " %s", time.Since(start))
 
 		log.Println(buf.String())
 	})

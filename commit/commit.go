@@ -9,35 +9,50 @@ import (
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 const (
-	url       = "git@github.com:DrC0ns0le/internal-bind-config.git"
+	sshUrl    = "git@github.com:DrC0ns0le/internal-bind-config.git"
+	httpUrl   = "https://github.com/DrC0ns0le/internal-bind-config.git"
 	directory = "output"
 )
 
-func init() {
+var (
+	authMethod transport.AuthMethod
+	url        string
+)
+
+func Init(token string) {
 
 	// check if directory exists
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
 		os.MkdirAll(directory, 0755)
 	}
 
-	// check if git is already cloned
-	if _, err := os.Stat(directory + "/.git"); os.IsNotExist(err) {
-		authMethod, err := ssh.NewSSHAgentAuth("git")
-
+	if token != "" {
+		authMethod = &http.BasicAuth{
+			Username: "DrC0ns0le",
+			Password: token,
+		}
+		url = httpUrl
+	} else {
+		var err error
+		authMethod, err = ssh.NewSSHAgentAuth("git")
 		if err != nil {
 			panic(err)
 		}
+		url = sshUrl
+	}
 
-		_, err = git.PlainClone(directory, false, &git.CloneOptions{
+	// check if git is already cloned
+	if _, err := os.Stat(directory + "/.git"); os.IsNotExist(err) {
+		if _, err = git.PlainClone(directory, false, &git.CloneOptions{
 			Auth: authMethod,
 			URL:  url,
-		})
-
-		if err != nil {
+		}); err != nil {
 			panic(err)
 		}
 	}
@@ -86,7 +101,10 @@ func Push() error {
 		return err
 	}
 
-	err = r.Push(&git.PushOptions{})
+	err = r.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       authMethod,
+	})
 	if err != nil {
 		return err
 	}

@@ -2,8 +2,10 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 
+	"github.com/DrC0ns0le/bind-api/commit"
 	"github.com/DrC0ns0le/bind-api/rdb"
 
 	_ "github.com/DrC0ns0le/bind-api/commit"
@@ -11,28 +13,30 @@ import (
 
 func main() {
 
-	const listenAddr = "0.0.0.0:9174"
+	loadConfig()
 
 	// Connect to the database
 	dbConfig := rdb.DBConfig{
-		Host:     "10.2.1.2",
-		Port:     5643,
-		User:     "postgres",
-		Password: "jack2001",
-		DBName:   "bind_dns",
+		Host:     *dbAddr,
+		Port:     *dbPort,
+		User:     *dbUser,
+		Password: *dbPass,
+		DBName:   *dbName,
 	}
 	rdb.Init(dbConfig)
+
+	commit.Init(*gitToken)
 
 	mux := http.NewServeMux()
 
 	registerRoutes(mux)
 
 	server := &http.Server{
-		Addr:    listenAddr,
+		Addr:    net.JoinHostPort(*listenAddr, *listenPort),
 		Handler: mux,
 	}
 
-	log.Printf("Listening at %s...\n", listenAddr)
+	log.Printf("Listening at %s...\n", net.JoinHostPort(*listenAddr, *listenPort))
 	err := server.ListenAndServe()
 	if err != nil {
 		panic(err)
