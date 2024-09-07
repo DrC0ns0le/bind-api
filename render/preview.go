@@ -2,16 +2,17 @@ package render
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"path/filepath"
 	"runtime"
 	"text/template"
 )
 
-func PreviewZoneRender() (map[string]string, error) {
+func PreviewZoneRender(ctx context.Context) (map[string]string, error) {
 
 	// Create all zones
-	zones, err := createZones()
+	zones, err := createZones(ctx)
 	if err != nil {
 		return nil, err
 	}

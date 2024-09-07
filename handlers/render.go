@@ -15,9 +15,12 @@ func GetRendersHandler(w http.ResponseWriter, r *http.Request) {
 	BeforeAfterMap := struct {
 		Before map[string]string `json:"before"`
 		After  map[string]string `json:"after"`
-	}{Before: make(map[string]string), After: make(map[string]string)}
+	}{
+		Before: make(map[string]string),
+		After:  make(map[string]string),
+	}
 
-	BeforeAfterMap.After, err = render.PreviewZoneRender()
+	BeforeAfterMap.After, err = render.PreviewZoneRender(r.Context())
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,

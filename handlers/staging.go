@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 func GetStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	Z, R, err := getAllStaging()
+	Z, R, err := getAllStaging(r.Context())
 	if err != nil {
 		errorMsg := responseBody{
 			Code:    1,
@@ -52,7 +53,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Render all zones
-	if err := render.RenderZonesTemplate(); err != nil {
+	if err := render.RenderZonesTemplate(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone rendering failed",
@@ -76,7 +77,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set config_status to awaiting_deployment
-	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "deployed"}).Update("awaiting_deployment"); err != nil {
+	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "deployed"}).Update(r.Context(), "awaiting_deployment"); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Unable to update deploy_status",
@@ -96,9 +97,9 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(responseBody)
 }
 
-func getAllStaging() ([]Zone, []Record, error) {
+func getAllStaging(ctx context.Context) ([]Zone, []Record, error) {
 	// Get all zones in staging
-	zones, err := (&rdb.Zone{}).GetStaging()
+	zones, err := (&rdb.Zone{}).GetStaging(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -127,7 +128,7 @@ func getAllStaging() ([]Zone, []Record, error) {
 	}
 
 	// Get all records in staging
-	records, err := (&rdb.Record{}).GetStaging()
+	records, err := (&rdb.Record{}).GetStaging(ctx)
 	if err != nil {
 		return nil, nil, err
 	}

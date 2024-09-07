@@ -13,10 +13,12 @@ import (
 
 func main() {
 
+	const listenAddr = "0.0.0.0:9174"
+
 	// Connect to the database
 	dbConfig := rdb.DBConfig{
 		Host:     "10.2.1.2",
-		Port:     5432,
+		Port:     5643,
 		User:     "postgres",
 		Password: "jack2001",
 		DBName:   "bind_dns",
@@ -72,8 +74,6 @@ func main() {
 
 	// Catch all
 	mux.Handle("/api/v1/", middleware.RESTMiddleware(middleware.CorsHandler(http.HandlerFunc(handlers.CatchAllHandler))))
-
-	const listenAddr = "0.0.0.0:9174"
 
 	server := &http.Server{
 		Addr:    listenAddr,

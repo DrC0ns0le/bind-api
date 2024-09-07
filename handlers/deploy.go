@@ -9,7 +9,7 @@ import (
 )
 
 func GetDeployHandler(w http.ResponseWriter, r *http.Request) {
-	status, err := (&rdb.Config{ConfigKey: "config_status"}).Find()
+	status, err := (&rdb.Config{ConfigKey: "config_status"}).Find(r.Context())
 	if err != nil {
 		responseBody := responseBody{
 			Code:    1,
@@ -51,7 +51,7 @@ func GetDeployHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	output, err := ansible.DeployConfig()
+	output, err := ansible.DeployConfig(r.Context())
 	if err != nil {
 		responseBody := responseBody{
 			Code:    1,

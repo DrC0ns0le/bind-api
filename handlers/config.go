@@ -20,7 +20,7 @@ type Config struct {
 }
 
 func GetConfigsHandler(w http.ResponseWriter, r *http.Request) {
-	configs, err := new(rdb.Config).Get()
+	configs, err := new(rdb.Config).Get(r.Context())
 	if err != nil {
 		responseBody := responseBody{
 			Code:    1,
@@ -54,7 +54,7 @@ func GetConfigsHandler(w http.ResponseWriter, r *http.Request) {
 
 func GetConfigHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("config_key")
-	config, err := (&rdb.Config{ConfigKey: key}).Find()
+	config, err := (&rdb.Config{ConfigKey: key}).Find(r.Context())
 	if err != nil {
 		responseBody := responseBody{
 			Code:    1,
@@ -111,7 +111,7 @@ func CreateConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &rdb.Config{ConfigKey: c.ConfigKey, ConfigValue: c.ConfigValue, Staging: c.Staging}
-	if err = config.Create(); err != nil {
+	if err = config.Create(r.Context()); err != nil {
 		responseBody := responseBody{
 			Code:    2,
 			Message: "Unable to create config",
@@ -151,7 +151,7 @@ func UpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &rdb.Config{ConfigKey: c.ConfigKey, ConfigValue: c.ConfigOld, Staging: c.Staging}
-	if err = config.Update(c.ConfigValue); err != nil {
+	if err = config.Update(r.Context(), c.ConfigValue); err != nil {
 		responseBody := responseBody{
 			Code:    2,
 			Message: "Unable to update config",
@@ -192,7 +192,7 @@ func DeleteConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &rdb.Config{ConfigKey: c.ConfigKey, ConfigValue: c.ConfigValue, Staging: c.Staging}
-	if err = config.Delete(); err != nil {
+	if err = config.Delete(r.Context()); err != nil {
 		responseBody := responseBody{
 			Code:    2,
 			Message: "Unable to delete config",

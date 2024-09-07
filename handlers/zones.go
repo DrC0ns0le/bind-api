@@ -38,7 +38,7 @@ type Zones []Zone
 func GetZonesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	zones, err := (&rdb.Zone{}).Get()
+	zones, err := (&rdb.Zone{}).Get(r.Context())
 
 	if err != nil {
 		log.Fatal(err)
@@ -81,7 +81,7 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	if err := zone.Find(); err != nil {
+	if err := zone.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Could not retrieve zone " + zone.UUID,
@@ -159,7 +159,7 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	uuid5 := uuid.NewSHA1(dnsNamespaceUUID, []byte(requestData.Name)).String()
 
 	// Check if the zone already exists
-	if err := (&rdb.Zone{UUID: uuid5}).Find(); err != nil {
+	if err := (&rdb.Zone{UUID: uuid5}).Find(r.Context()); err != nil {
 		if err == sql.ErrNoRows {
 			errorMsg := responseBody{
 				Code:    2,
@@ -195,7 +195,7 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the zone
-	err = newZone.Create()
+	err = newZone.Create(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -214,7 +214,7 @@ func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	if err := zone.Find(); err != nil {
+	if err := zone.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone of UUID" + zone.UUID + " not found",
@@ -268,7 +268,7 @@ func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the zone
-	if err := zone.Update(); err != nil {
+	if err := zone.Update(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Failed to update zone of UUID" + zone.UUID,
@@ -296,7 +296,7 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	if err := zone.Find(); err != nil {
+	if err := zone.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone of UUID" + zone.UUID + " not found",
@@ -308,7 +308,7 @@ func DeleteZoneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute the delete query
-	if err := zone.Delete(); err != nil {
+	if err := zone.Delete(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Failed to delete zone of UUID" + zone.UUID,

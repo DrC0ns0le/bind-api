@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -50,7 +51,7 @@ type Zone struct {
 	SOA     SOA
 }
 
-func createZones() ([]Zone, error) {
+func createZones(ctx context.Context) ([]Zone, error) {
 	var ZS []Zone
 	rDNS := make(map[string][]Record)
 
@@ -66,13 +67,13 @@ func createZones() ([]Zone, error) {
 		})
 	}
 
-	zs, err := (&rdb.Zone{}).Get()
+	zs, err := (&rdb.Zone{}).Get(ctx)
 	if err != nil {
 		return ZS, err
 	}
 
 	for _, z := range zs {
-		rs, err := (&rdb.Record{ZoneUUID: z.UUID}).Get()
+		rs, err := (&rdb.Record{ZoneUUID: z.UUID}).Get(ctx)
 		if err != nil {
 			return ZS, err
 		}
@@ -335,10 +336,10 @@ func renderZone(zone Zone) (string, error) {
 	return path, nil
 }
 
-func RenderZonesTemplate() error {
+func RenderZonesTemplate(ctx context.Context) error {
 
 	// Create all zones
-	zs, err := createZones()
+	zs, err := createZones(ctx)
 	if err != nil {
 		return err
 	}
@@ -358,7 +359,7 @@ func RenderZonesTemplate() error {
 	}
 
 	// Commit all changes
-	err = (&rdb.Record{}).CommitAll()
+	err = (&rdb.Record{}).CommitAll(ctx)
 	if err != nil {
 		return err
 	}

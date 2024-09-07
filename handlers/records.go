@@ -37,7 +37,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract zone UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
 
-	records, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get()
+	records, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get(r.Context())
 
 	if err != nil {
 		errorMsg := responseBody{
@@ -90,7 +90,7 @@ func GetRecordHandler(w http.ResponseWriter, r *http.Request) {
 	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	if err := record.Find(); err != nil {
+	if err := record.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -143,7 +143,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	zone := rdb.Zone{UUID: r.PathValue("zone_uuid")}
 
 	// Find the zone by UUID
-	if err := zone.Find(); err != nil {
+	if err := zone.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Zone not found",
@@ -207,7 +207,7 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the record
-	if err := newRecord.Create(); err != nil {
+	if err := newRecord.Create(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
 			Message: "Faild to create record in database",
@@ -235,7 +235,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	if err := record.Find(); err != nil {
+	if err := record.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -319,7 +319,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the record
-	if err := record.Update(); err != nil {
+	if err := record.Update(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
 			Message: "Faild to update record in database",
@@ -348,7 +348,7 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	record := rdb.Record{UUID: r.PathValue("record_uuid")}
 
 	// Find the zone by UUID and record by UUID
-	if err := record.Find(); err != nil {
+	if err := record.Find(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Record not found",
@@ -371,7 +371,7 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete record from database
-	if err := record.Delete(); err != nil {
+	if err := record.Delete(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    2,
 			Message: "Failed to delete record of UUID" + record.UUID + " from database",
