@@ -322,7 +322,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	if err := record.Update(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    3,
-			Message: "Faild to update record in database",
+			Message: "Failed to update record in database",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusBadRequest)
@@ -374,7 +374,7 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	if err := record.Delete(r.Context()); err != nil {
 		errorMsg := responseBody{
 			Code:    2,
-			Message: "Failed to delete record of UUID" + record.UUID + " from database",
+			Message: "Failed to delete record of UUID " + record.UUID + " from database",
 			Data:    err.Error(),
 		}
 		w.WriteHeader(http.StatusInternalServerError)

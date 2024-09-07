@@ -29,7 +29,7 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get(ctx context.Context) ([]Zone, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (z *Zone) Get(ctx context.Context) ([]Zone, error) {
 //
 // Returns an error if the insertion fails.
 func (z *Zone) Create(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -95,14 +95,14 @@ func (z *Zone) Create(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Update marks a zone as staging in the database.
 //
 // Returns an error if the update fails.
 func (z *Zone) Update(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -146,14 +146,14 @@ func (z *Zone) Update(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Delete marks a zone as deleted in the database.
 //
 // Returns an error if the deletion fails.
 func (z *Zone) Delete(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -187,14 +187,14 @@ func (z *Zone) Delete(ctx context.Context) error {
 		return err
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Find retrieves a zone from the database.
 //
 // Returns an error if the retrieval fails.
 func (z *Zone) Find(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (z *Zone) Find(ctx context.Context) error {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) GetStaging(ctx context.Context) ([]Zone, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

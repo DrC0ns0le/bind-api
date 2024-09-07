@@ -31,7 +31,7 @@ type Record struct {
 //   - []Record: A slice of Record structs representing the retrieved records.
 //   - error: An error if the retrieval fails.
 func (r *Record) Get(ctx context.Context) ([]Record, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (r *Record) Get(ctx context.Context) ([]Record, error) {
 //
 // It returns a slice of Record and an error if any.
 func (r *Record) GetAll(ctx context.Context) ([]Record, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (r *Record) GetAll(ctx context.Context) ([]Record, error) {
 //
 // Returns an error if the insertion fails.
 func (r *Record) Create(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (r *Record) Create(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Find retrieves a record with the given UUID from the database.
@@ -160,7 +160,7 @@ func (r *Record) Find(ctx context.Context) error {
 //
 // Returns an error if the update fails.
 func (r *Record) Update(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -209,14 +209,14 @@ func (r *Record) Update(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Delete deletes a record from the database.
 //
 // Returns an error if the deletion fails.
 func (r *Record) Delete(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (r *Record) Delete(ctx context.Context) error {
 		return err
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // Commit commits the changes to the database.
@@ -258,7 +258,7 @@ func (r *Record) Delete(ctx context.Context) error {
 //
 // Returns an error if the commit fails.
 func (r *Record) CommitAll(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (r *Record) CommitAll(ctx context.Context) error {
 		return fmt.Errorf("expected %d rows affected, got %d", count, rowsAffected)
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // GetStaging retrieves all records in the staging area.
@@ -301,7 +301,7 @@ func (r *Record) CommitAll(ctx context.Context) error {
 //   - []Record: A slice of Record structs representing the retrieved records.
 //   - error: An error if the retrieval fails.
 func (r *Record) GetStaging(ctx context.Context) ([]Record, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ type Config struct {
 // It returns a slice of Config structs and an error if any.
 func (c *Config) Get(ctx context.Context) ([]Config, error) {
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (c *Config) Get(ctx context.Context) ([]Config, error) {
 // The function returns a slice of Config objects and an error.
 func (c *Config) Find(ctx context.Context) ([]Config, error) {
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (c *Config) Find(ctx context.Context) ([]Config, error) {
 
 // Delete removes a config from the database.
 func (c *Config) Delete(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -102,11 +102,11 @@ func (c *Config) Delete(ctx context.Context) error {
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (c *Config) Create(ctx context.Context) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -146,11 +146,11 @@ func (c *Config) Create(ctx context.Context) error {
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (c *Config) Update(ctx context.Context, value string) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -191,5 +191,5 @@ FOUND:
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }

@@ -12,7 +12,7 @@ func (t Tag) String() string {
 }
 
 func (t Tag) GetRecord(ctx context.Context, recordUUID string) ([]string, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (t Tag) GetRecord(ctx context.Context, recordUUID string) ([]string, error)
 }
 
 func (t Tag) GetZone(ctx context.Context, zoneUUID string) ([]string, error) {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (t Tag) GetZone(ctx context.Context, zoneUUID string) ([]string, error) {
 }
 
 func (t Tag) CreateRecord(ctx context.Context, recordUUID string) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -72,15 +72,18 @@ func (t Tag) CreateRecord(ctx context.Context, recordUUID string) error {
 
 	query := "INSERT INTO bind_dns.tags (record_uuid, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING"
 	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return err
+	}
 	_, err = stmt.ExecContext(ctx, recordUUID, t.String())
 	if err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (t Tag) CreateZone(ctx context.Context, zoneUUID string) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -88,15 +91,18 @@ func (t Tag) CreateZone(ctx context.Context, zoneUUID string) error {
 
 	query := "INSERT INTO bind_dns.tags (zone_uuid, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING"
 	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return err
+	}
 	_, err = stmt.ExecContext(ctx, zoneUUID, t.String())
 	if err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (t Tag) DeleteRecord(ctx context.Context, recordUUID string) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -137,7 +143,7 @@ func (t Tag) DeleteRecord(ctx context.Context, recordUUID string) error {
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }
 
 // DeleteZone deletes either all tags or a specific tag for a given zone UUID.
@@ -149,7 +155,7 @@ func (t Tag) DeleteRecord(ctx context.Context, recordUUID string) error {
 // Returns:
 //   - error: An error if the deletion fails.
 func (t Tag) DeleteZone(ctx context.Context, zoneUUID string) error {
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -191,5 +197,5 @@ func (t Tag) DeleteZone(ctx context.Context, zoneUUID string) error {
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	return tx.Commit()
 }

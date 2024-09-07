@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"log"
+	"net"
 	"net/http"
 )
 
@@ -38,8 +39,15 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 func LoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received request: %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+		log.Printf("###")
+		log.Printf("Received request: %s %s", r.Method, r.URL.Path)
+		log.Printf("Request from: %s", r.RemoteAddr)
 		// log.Printf("Request headers: %v", r.Header)
+		for k, v := range r.Header {
+			if k == "X-Forwarded-For" {
+				log.Printf("Forwarded for: %s", net.JoinHostPort(v[0], r.Header["X-Forwarded-Port"][0]))
+			}
+		}
 		// log.Printf("Request body: %s", r.Body)
 		next.ServeHTTP(w, r)
 	})
