@@ -33,6 +33,5 @@ COPY --from=builder /app/render/templates /app/render/templates
 
 # Copy Ansible configuration files
 COPY --from=builder /app/ansible/deploy_config.yaml /app/ansible/deploy_config.yaml
-COPY --from=builder /app/ansible/inventory.ini /app/ansible/inventory.ini
 
 ENTRYPOINT ["./main"]
