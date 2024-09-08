@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_REGISTRY = "registry.internal.leejacksonz.com"
-        DOCKER_IMAGE_NAME = "bind-frontend"
+        DOCKER_IMAGE = "bind-api"
         DOCKER_TAG = "${env.GIT_BRANCH.replaceAll('/', '-')}-${env.GIT_COMMIT.take(7)}"
     }
 
