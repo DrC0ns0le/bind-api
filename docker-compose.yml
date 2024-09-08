@@ -7,3 +7,4 @@ services:
       - ${LISTEN_PORT}:${LISTEN_PORT}
     env_file:
       - .env
+    restart: always
