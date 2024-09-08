@@ -8,7 +8,8 @@ pipeline {
     environment {
         DOCKER_REGISTRY = "registry.internal.leejacksonz.com"
         DOCKER_IMAGE = "bind-api"
-        DOCKER_TAG = "${env.GIT_BRANCH.replaceAll('/', '-')}-${env.GIT_COMMIT.take(7)}"
+        GIT_BRANCH_NAME = "${env.GIT_BRANCH.replaceAll('^origin/', '')}"
+        DOCKER_TAG = "${GIT_BRANCH_NAME.replaceAll('/', '-')}-${env.GIT_COMMIT.take(7)}"
     }
     stages {
         stage('Build and Push Docker Image') {
@@ -23,7 +24,7 @@ pipeline {
                               --insecure
                         """
                         
-                        if (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'master') {
+                        if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
                             sh """
                                 /kaniko/executor \
                                   --context . \

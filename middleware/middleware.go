@@ -45,7 +45,15 @@ func LoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		buf := new(bytes.Buffer)
-		fmt.Fprintf(buf, "%s %s %s", net.JoinHostPort(r.Header["X-Forwarded-For"][0], r.Header["X-Forwarded-Port"][0]), r.Method, r.URL.Path)
+
+		forwardedFor := r.Header.Get("X-Forwarded-For")
+		forwardedPort := r.Header.Get("X-Forwarded-Port")
+
+		if forwardedFor == "" {
+			forwardedFor = r.RemoteAddr
+		}
+
+		fmt.Fprintf(buf, "%s %s %s", net.JoinHostPort(forwardedFor, forwardedPort), r.Method, r.URL.Path)
 
 		if r.Method != "GET" && r.Header.Get("Content-Type") == "application/json" {
 			bodyBytes, err := io.ReadAll(r.Body)
