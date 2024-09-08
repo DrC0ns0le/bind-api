@@ -10,32 +10,36 @@ pipeline {
         DOCKER_IMAGE = "bind-api"
         DOCKER_TAG = "${env.GIT_BRANCH.replaceAll('/', '-')}-${env.GIT_COMMIT.take(7)}"
     }
-
     stages {
-        stage('Build Docker Image') {
+        stage('Build and Push Docker Image') {
             steps {
-                sh 'docker build -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_TAG} .'
-            }
-        }
-        stage('Push to Registry') {
-            steps {
-                script {
-                    sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                    
-                    if (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'master') {
-                        sh "docker tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
-                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                container('kaniko') {
+                    script {
+                        sh """
+                            /kaniko/executor \
+                              --context . \
+                              --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
+                              --dockerfile Dockerfile \
+                              --insecure
+                        """
+                        
+                        if (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'master') {
+                            sh """
+                                /kaniko/executor \
+                                  --context . \
+                                  --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
+                                  --dockerfile Dockerfile \
+                                  --insecure
+                            """
+                        }
                     }
                 }
             }
         }
     }
-
     post {
         always {
             cleanWs()
-            sh "docker rmi ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-            sh "docker rmi ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest || true"
         }
     }
 }
