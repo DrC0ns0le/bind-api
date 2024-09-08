@@ -34,7 +34,7 @@ func Init(token string) {
 
 	if token != "" {
 		authMethod = &http.BasicAuth{
-			Username: "DrC0ns0le",
+			Username: "token",
 			Password: token,
 		}
 		url = httpUrl
