@@ -1,7 +1,7 @@
 pipeline {
     agent {
         kubernetes {
-            yamlFile 'kaniko-builder.yaml'
+            yamlFile 'kaniko-builder.yml'
         }
     }
 
