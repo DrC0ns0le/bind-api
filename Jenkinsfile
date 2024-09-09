@@ -16,23 +16,14 @@ pipeline {
             steps {
                 container('kaniko') {
                     script {
-                        sh """
-                            /kaniko/executor \
-                              --context . \
-                              --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
-                              --dockerfile Dockerfile \
-                              --insecure
-                        """
+                        def kanikoCmd = "/kaniko/executor --context . " +
+                                        "--destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
                         
                         if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
-                            sh """
-                                /kaniko/executor \
-                                  --context . \
-                                  --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
-                                  --dockerfile Dockerfile \
-                                  --insecure
-                            """
+                            kanikoCmd += " --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
                         }
+                        
+                        sh kanikoCmd
                     }
                 }
             }
