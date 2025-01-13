@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/DrC0ns0le/bind-api/commit"
@@ -30,7 +31,7 @@ func GetStagingHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "Unable to retrieve changes in staging",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
@@ -60,7 +61,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "Zone rendering failed",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
@@ -72,10 +73,13 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "Unable to commit changes",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		// try resetting the git repo
-		commit.Reset()
+		err = commit.Reset()
+		if err != nil {
+			log.Printf("Unable to reset repo: %s\n", err.Error())
+		}
 		return
 	}
 
@@ -95,7 +99,7 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "Unable to update deploy_status",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}

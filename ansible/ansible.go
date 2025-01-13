@@ -38,7 +38,7 @@ func DeployConfig(ctx context.Context) (string, error) {
 	}
 
 	// set config deploy_status to deployed
-	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "awaiting_deployment", Staging: false}).Update(ctx, "deployed"); err != nil {
+	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "awaiting_deployment", Staging: false}).Update(ctx, "deployed"); err != nil && !errors.Is(err, rdb.ErrNothingToUpdate) {
 		return "", fmt.Errorf("failed to update deploy_status: %w", err)
 	}
 

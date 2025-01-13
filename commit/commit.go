@@ -7,7 +7,6 @@ import (
 	"time"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -25,13 +24,15 @@ var (
 	url        string
 )
 
-func Init(token string) {
-
+func Init(token string) error {
 	// check if directory exists
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		os.MkdirAll(directory, 0755)
+		if err := os.MkdirAll(directory, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
 	}
 
+	// set up authentication
 	if token != "" {
 		authMethod = &http.BasicAuth{
 			Username: "token",
@@ -42,24 +43,28 @@ func Init(token string) {
 		var err error
 		authMethod, err = ssh.NewSSHAgentAuth("git")
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("failed to setup SSH auth: %w", err)
 		}
 		url = sshUrl
 	}
 
 	// check if git is already cloned
 	if _, err := os.Stat(directory + "/.git"); os.IsNotExist(err) {
-		if _, err = git.PlainClone(directory, false, &git.CloneOptions{
+		_, err = git.PlainClone(directory, false, &git.CloneOptions{
 			Auth: authMethod,
 			URL:  url,
-		}); err != nil {
-			panic(err)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to clone repository: %w", err)
 		}
 	}
 
-	Reset()
+	if err := Reset(); err != nil {
+		return fmt.Errorf("failed to reset repository: %w", err)
+	}
 
 	log.Println("Git init successful.")
+	return nil
 }
 
 // Commit all files and push to remote
@@ -114,7 +119,6 @@ func Push() error {
 
 // Undo all changes
 func Reset() error {
-
 	r, err := git.PlainOpen(directory)
 	if err != nil {
 		return err
@@ -125,19 +129,15 @@ func Reset() error {
 		return err
 	}
 
+	// Pull latest changes
 	err = w.Pull(&git.PullOptions{RemoteName: "origin"})
-	if err != nil {
-		if err != git.NoErrAlreadyUpToDate {
-			return err
-		} else {
-			return nil
-		}
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return err
 	}
 
-	// reset to the latest commit
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash:  plumbing.NewHash("master"),
-		Force: true,
+	// Hard reset to remove all local changes
+	err = w.Reset(&git.ResetOptions{
+		Mode: git.HardReset,
 	})
 	if err != nil {
 		return err
