@@ -259,12 +259,12 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var requestData struct {
-		Type    string   `json:"type"`
-		Host    string   `json:"host"`
-		Content string   `json:"content"`
-		TTL     uint16   `json:"ttl"`
-		AddPTR  bool     `json:"add_ptr"`
-		Tags    []string `json:"tags"`
+		Type    *string   `json:"type"`
+		Host    *string   `json:"host"`
+		Content *string   `json:"content"`
+		TTL     *uint16   `json:"ttl"`
+		AddPTR  *bool     `json:"add_ptr"`
+		Tags    *[]string `json:"tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		errorMsg := responseBody{
@@ -272,36 +272,35 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "Unable to parse request body",
 			Data:    err.Error(),
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
 
 	// Update record fields if provided in request
 	needUpdate := false
-	if requestData.Type != "" {
-		record.Type = requestData.Type
+	if requestData.Type != nil {
+		record.Type = *requestData.Type
 		needUpdate = true
 	}
-	if requestData.Host != "" {
-		record.Host = requestData.Host
+	if requestData.Host != nil {
+		record.Host = *requestData.Host
 		needUpdate = true
 	}
-	if requestData.Content != "" {
-		record.Content = requestData.Content
+	if requestData.Content != nil {
+		record.Content = *requestData.Content
 		needUpdate = true
 	}
-	if requestData.TTL != 0 {
-		record.TTL = requestData.TTL
+	if requestData.TTL != nil {
+		record.TTL = *requestData.TTL
 		needUpdate = true
 	}
-	if len(requestData.Tags) > 0 {
-		record.Tags = requestData.Tags
+	if requestData.Tags != nil {
+		record.Tags = *requestData.Tags
 		needUpdate = true
 	}
-
-	if record.AddPTR != requestData.AddPTR {
-		record.AddPTR = requestData.AddPTR
+	if requestData.AddPTR != nil {
+		record.AddPTR = *requestData.AddPTR
 		needUpdate = true
 	}
 

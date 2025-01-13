@@ -155,13 +155,13 @@ func (c *Config) Update(ctx context.Context, newValue string) error {
 		if config.ConfigValue == c.ConfigValue {
 			if found {
 				// do not proceed if duplicate config exists, should not happen but just in case
-				return fmt.Errorf("duplicate config %s=%s already exists %w", config.ConfigKey, c.ConfigValue, ErrNotUpdated)
+				return fmt.Errorf("duplicate config %s=%s already exists %w", config.ConfigKey, c.ConfigValue, ErrNothingToUpdate)
 			} else {
 				found = true
 			}
 		}
 		if config.ConfigValue == newValue {
-			return fmt.Errorf("config %s=%s already exists %w", config.ConfigKey, newValue, ErrNotUpdated)
+			return fmt.Errorf("config %s=%s already exists %w", config.ConfigKey, newValue, ErrNothingToUpdate)
 		}
 	}
 	if !found {

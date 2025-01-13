@@ -56,7 +56,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		responseBody := responseBody{
 			Code:    1,
 			Message: "Unable to deploy changes",
-			Data:    err.Error(),
+			Data:    err.Error() + "\n" + output,
 		}
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(responseBody)

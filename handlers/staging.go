@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/DrC0ns0le/bind-api/commit"
@@ -85,7 +86,10 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set config_status to awaiting_deployment
-	if err := (&rdb.Config{ConfigKey: "config_status", ConfigValue: "deployed"}).Update(r.Context(), "awaiting_deployment"); err != nil {
+	if err := (&rdb.Config{
+		ConfigKey:   "config_status",
+		ConfigValue: "deployed",
+	}).Update(r.Context(), "awaiting_deployment"); err != nil && !errors.Is(err, rdb.ErrNothingToUpdate) {
 		errorMsg := responseBody{
 			Code:    1,
 			Message: "Unable to update deploy_status",
