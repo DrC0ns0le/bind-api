@@ -18,5 +18,5 @@
     - name: Restart BIND DNS Server service
       ansible.builtin.systemd:
         name: bind9
-        state: restarted
+        state: reloaded
         enabled: true

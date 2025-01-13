@@ -73,6 +73,8 @@ func ApplyStagingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(errorMsg)
+		// try resetting the git repo
+		commit.Reset()
 		return
 	}
 

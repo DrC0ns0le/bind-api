@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Zone struct {
@@ -29,13 +31,13 @@ type Zone struct {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) Get(ctx context.Context) ([]Zone, error) {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	rows, err := tx.QueryContext(ctx, "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, ttl,staging FROM bind_dns.zones WHERE deleted_at IS NULL OR staging = TRUE")
+	rows, err := tx.Query(ctx, "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, ttl,staging FROM bind_dns.zones WHERE deleted_at IS NULL OR staging = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -64,25 +66,24 @@ func (z *Zone) Get(ctx context.Context) ([]Zone, error) {
 //
 // Returns an error if the insertion fails.
 func (z *Zone) Create(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	query := "INSERT INTO bind_dns.zones (uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging) VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, $9, TRUE)"
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
 
 	timeNow := time.Now()
 	z.CreatedAt = timeNow
 	z.ModifiedAt = timeNow
-	_, err = stmt.ExecContext(ctx, z.UUID, z.Name, timeNow, z.PrimaryNS, z.AdminEmail, z.Refresh, z.Retry, z.Expire, z.Minimum)
+	commandTag, err := tx.Exec(ctx, query, z.UUID, z.Name, timeNow, z.PrimaryNS, z.AdminEmail, z.Refresh, z.Retry, z.Expire, z.Minimum)
 	if err != nil {
 		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return ErrNotCreated
 	}
 
 	// add tags if any
@@ -95,38 +96,28 @@ func (z *Zone) Create(ctx context.Context) error {
 		}
 	}
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
 // Update marks a zone as staging in the database.
 //
 // Returns an error if the update fails.
 func (z *Zone) Update(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	query := "UPDATE bind_dns.zones SET name = $1, primary_ns = $2, admin_email = $3, refresh = $4, retry = $5, expire = $6, minimum = $7, staging = TRUE WHERE uuid = $8"
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
 
-	result, err := stmt.ExecContext(ctx, z.Name, z.PrimaryNS, z.AdminEmail, z.Refresh, z.Retry, z.Expire, z.Minimum, z.UUID)
+	result, err := tx.Exec(ctx, query, z.Name, z.PrimaryNS, z.AdminEmail, z.Refresh, z.Retry, z.Expire, z.Minimum, z.UUID)
 	if err != nil {
 		return err
 	}
 
 	// Log the output
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
+	if result.RowsAffected() == 0 {
 		return sql.ErrNoRows
 	}
 
@@ -146,63 +137,47 @@ func (z *Zone) Update(ctx context.Context) error {
 		}
 	}
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
 // Delete marks a zone as deleted in the database.
 //
 // Returns an error if the deletion fails.
 func (z *Zone) Delete(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	query := "UPDATE bind_dns.zones SET deleted_at = $1, staging = TRUE WHERE uuid = $2"
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
 
-	result, err := stmt.ExecContext(ctx, time.Now(), z.UUID)
+	result, err := tx.Exec(ctx, query, time.Now(), z.UUID)
 	if err != nil {
 		return err
 	}
 
 	// Log the output
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
+	if result.RowsAffected() == 0 {
 		return sql.ErrNoRows
 	}
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
 // Find retrieves a zone from the database.
 //
 // Returns an error if the retrieval fails.
 func (z *Zone) Find(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	query := "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE uuid = $1 AND (deleted_at IS NULL OR (deleted_at IS NOT NULL AND staging = TRUE))"
 
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	row := stmt.QueryRowContext(ctx, z.UUID)
+	row := tx.QueryRow(ctx, query, z.UUID)
 	err = row.Scan(&z.UUID, &z.Name, &z.CreatedAt, &z.ModifiedAt, &z.DeletedAt, &z.PrimaryNS, &z.AdminEmail, &z.Refresh, &z.Retry, &z.Expire, &z.Minimum, &z.Staging)
 	if err != nil {
 		return err
@@ -222,13 +197,13 @@ func (z *Zone) Find(ctx context.Context) error {
 //   - []Zone: A slice of Zone structs representing the retrieved zones.
 //   - error: An error if the retrieval fails.
 func (z *Zone) GetStaging(ctx context.Context) ([]Zone, error) {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	rows, err := tx.QueryContext(ctx, "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE staging = TRUE")
+	rows, err := tx.Query(ctx, "SELECT uuid, name, created_at, modified_at, deleted_at, primary_ns, admin_email, refresh, retry, expire, minimum, staging FROM bind_dns.zones WHERE staging = TRUE")
 	if err != nil {
 		return nil, err
 	}

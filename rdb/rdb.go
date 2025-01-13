@@ -1,46 +1,83 @@
 package rdb
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log"
+	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 
 type DBConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DBName   string
+	Host        string
+	Port        int
+	User        string
+	Password    string
+	DBName      string
+	MaxConns    int32
+	MinConns    int32
+	MaxConnIdle time.Duration
+	MaxConnLife time.Duration
 }
 
 func Init(config DBConfig) {
-
+	ctx := context.Background()
 	// Connect to the database
-	if err := connect(config.Host, config.Port, config.User, config.Password, config.DBName, "disable"); err != nil {
+	if err := connect(ctx, config); err != nil {
 		log.Fatal(err)
 	}
 
 	// Test the connection
-	if err := db.Ping(); err != nil {
+	if err := db.Ping(ctx); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("Connected to the database successfully.\n")
 }
 
-// Connect establishes a connection to the database
-func connect(host string, port int, user, password, dbname string, sslmode string) error {
-	dbinfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		host, port, user, password, dbname, sslmode)
+// Connect establishes a connection pool to the database
+func connect(ctx context.Context, config DBConfig) error {
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		config.User, config.Password, config.Host, config.Port, config.DBName)
 
-	postgres, err := sql.Open("postgres", dbinfo)
+	poolConfig, err := pgxpool.ParseConfig(connString)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to parse connection string: %v", err)
 	}
-	db = postgres
+
+	// Set connection pool settings
+	if config.MaxConns == 0 {
+		poolConfig.MaxConns = 50
+	} else {
+		poolConfig.MaxConns = config.MaxConns
+	}
+
+	if config.MinConns == 0 {
+		poolConfig.MinConns = 5
+	} else {
+		poolConfig.MinConns = config.MinConns
+	}
+
+	if config.MaxConnIdle == 0 {
+		poolConfig.MaxConnIdleTime = 10 * time.Minute
+	} else {
+		poolConfig.MaxConnIdleTime = config.MaxConnIdle
+	}
+
+	if config.MaxConnLife == 0 {
+		poolConfig.MaxConnLifetime = 10 * time.Minute
+	} else {
+
+		poolConfig.MaxConnLifetime = config.MaxConnLife
+	}
+
+	// Create the connection pool
+	db, err = pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return fmt.Errorf("unable to create connection pool: %v", err)
+	}
+
 	return nil
 }

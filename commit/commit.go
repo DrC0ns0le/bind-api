@@ -129,6 +129,8 @@ func Reset() error {
 	if err != nil {
 		if err != git.NoErrAlreadyUpToDate {
 			return err
+		} else {
+			return nil
 		}
 	}
 

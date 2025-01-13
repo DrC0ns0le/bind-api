@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Config struct {
@@ -20,14 +22,7 @@ type Config struct {
 //
 // It returns a slice of Config structs and an error if any.
 func (c *Config) Get(ctx context.Context) ([]Config, error) {
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	rows, err := tx.QueryContext(ctx, "SELECT config_key, config_value, created_at, modified_at, staging FROM bind_dns.configs WHERE staging = TRUE OR deleted_at IS NULL")
+	rows, err := db.Query(ctx, "SELECT config_key, config_value, created_at, modified_at, staging FROM bind_dns.configs WHERE staging = TRUE OR deleted_at IS NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -49,14 +44,13 @@ func (c *Config) Get(ctx context.Context) ([]Config, error) {
 //
 // The function returns a slice of Config objects and an error.
 func (c *Config) Find(ctx context.Context) ([]Config, error) {
-
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	rows, err := tx.QueryContext(ctx, "SELECT config_key, config_value, created_at, modified_at, deleted_at, staging FROM bind_dns.configs WHERE config_key = $1 AND (deleted_at IS NULL OR staging = TRUE)", c.ConfigKey)
+	rows, err := tx.Query(ctx, "SELECT config_key, config_value, created_at, modified_at, deleted_at, staging FROM bind_dns.configs WHERE config_key = $1 AND (deleted_at IS NULL OR staging = TRUE)", c.ConfigKey)
 	if err != nil {
 		return nil, err
 	}
@@ -85,32 +79,28 @@ func (c *Config) Find(ctx context.Context) ([]Config, error) {
 
 // Delete removes a config from the database.
 func (c *Config) Delete(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	result, err := tx.ExecContext(ctx, "UPDATE bind_dns.configs SET deleted_at = NOW(), staging = $1 WHERE config_key = $2 and deleted_at IS NULL", c.Staging, c.ConfigKey)
+	result, err := tx.Exec(ctx, "UPDATE bind_dns.configs SET deleted_at = NOW(), staging = $1 WHERE config_key = $2 and deleted_at IS NULL", c.Staging, c.ConfigKey)
 	if err != nil {
 		return err
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	if result.RowsAffected() == 0 {
 		return sql.ErrNoRows
 	}
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
 func (c *Config) Create(ctx context.Context) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	// make sure config doesn't already exist
 	configs, err := c.Find(ctx)
@@ -124,72 +114,71 @@ func (c *Config) Create(ctx context.Context) error {
 	}
 
 	query := "INSERT INTO bind_dns.configs (config_key, config_value, created_at, modified_at, staging) VALUES ($1, $2, $3, $4, $5)"
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
 	timeNow := time.Now()
 	c.CreatedAt = timeNow
 	c.ModifiedAt = timeNow
-	result, err := stmt.ExecContext(ctx, c.ConfigKey, c.ConfigValue, timeNow, timeNow, c.Staging)
+	result, err := tx.Exec(ctx, query, c.ConfigKey, c.ConfigValue, timeNow, timeNow, c.Staging)
 	if err != nil {
 		return err
 	}
 
 	// Check if any rows were inserted
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
+	if result.RowsAffected() == 0 {
+		return ErrNotCreated
 	}
-	if rowsAffected == 0 {
-		return sql.ErrNoRows
-	}
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
-func (c *Config) Update(ctx context.Context, value string) error {
-	tx, err := db.BeginTx(ctx, nil)
+func (c *Config) Update(ctx context.Context, newValue string) error {
+	// do nothing if value hasn't changed
+	if c.ConfigValue == newValue {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	// make sure config with value doesn't already exist
+	// check if config exists
 	configs, err := c.Find(ctx)
 	if err != nil {
 		return err
 	}
+	if len(configs) == 0 {
+		return ErrNotFound
+	}
+	// look for existing config kv pair
+	var found bool
 	for _, config := range configs {
 		if config.ConfigValue == c.ConfigValue {
-			goto FOUND
+			if found {
+				// do not proceed if duplicate config exists, should not happen but just in case
+				return fmt.Errorf("duplicate config %s=%s already exists %w", config.ConfigKey, c.ConfigValue, ErrNotUpdated)
+			} else {
+				found = true
+			}
+		}
+		if config.ConfigValue == newValue {
+			return fmt.Errorf("config %s=%s already exists %w", config.ConfigKey, newValue, ErrNotUpdated)
 		}
 	}
-	return fmt.Errorf("could not find %s=%s", c.ConfigKey, c.ConfigValue)
-
-FOUND:
-	query := "UPDATE bind_dns.configs SET config_value = $1, modified_at = $2, staging = $3 WHERE config_key = $4 and config_value = $5"
-	stmt, err := tx.PrepareContext(ctx, query)
-	if err != nil {
-		return err
+	if !found {
+		return ErrNotFound
 	}
-	defer stmt.Close()
 
+	// update config
+	query := "UPDATE bind_dns.configs SET config_value = $1, modified_at = $2, staging = $3 WHERE config_key = $4 and config_value = $5"
 	timeNow := time.Now()
 	c.ModifiedAt = timeNow
-	result, err := stmt.ExecContext(ctx, value, timeNow, c.Staging, c.ConfigKey, c.ConfigValue)
+	result, err := tx.Exec(ctx, query, newValue, timeNow, c.Staging, c.ConfigKey, c.ConfigValue)
 	if err != nil {
 		return err
 	}
 
-	// Check if any rows were updated
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
 	}
-	if rowsAffected == 0 {
-		return sql.ErrNoRows
-	}
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
