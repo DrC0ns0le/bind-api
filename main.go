@@ -25,7 +25,10 @@ func main() {
 	}
 	rdb.Init(dbConfig)
 
-	commit.Init(*gitToken)
+	err := commit.Init(*gitToken)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mux := http.NewServeMux()
 
@@ -37,7 +40,7 @@ func main() {
 	}
 
 	log.Printf("Listening at %s...\n", net.JoinHostPort(*listenAddr, *listenPort))
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		panic(err)
 	}

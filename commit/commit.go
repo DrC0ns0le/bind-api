@@ -130,7 +130,7 @@ func Reset() error {
 	}
 
 	// Pull latest changes
-	err = w.Pull(&git.PullOptions{RemoteName: "origin"})
+	err = w.Pull(&git.PullOptions{RemoteName: "origin", Auth: authMethod})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return err
 	}
