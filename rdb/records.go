@@ -88,9 +88,9 @@ func (r *Record) Get(ctx context.Context, page, pageSize int, searchQuery string
 		}
 		whereConditions = append(whereConditions, fmt.Sprintf(`
             EXISTS (
-                SELECT 1 FROM bind_dns.record_tags rt
-                WHERE rt.record_uuid = r.uuid
-                AND rt.tag IN (%s)
+                SELECT 1 FROM bind_dns.tags t
+                WHERE t.record_uuid = r.uuid
+                AND t.tag IN (%s)
             )`, strings.Join(tagPlaceholders, ",")))
 	}
 
@@ -105,9 +105,9 @@ func (r *Record) Get(ctx context.Context, page, pageSize int, searchQuery string
 			fmt.Sprintf("r.content ILIKE $%d", argCount),
 			fmt.Sprintf(`
                 EXISTS (
-                    SELECT 1 FROM bind_dns.record_tags rt
-                    WHERE rt.record_uuid = r.uuid
-                    AND rt.tag ILIKE $%d
+                    SELECT 1 FROM bind_dns.tags t
+                    WHERE t.record_uuid = r.uuid
+                    AND t.tag ILIKE $%d
                 )`, argCount),
 		}
 
@@ -184,9 +184,9 @@ func (r *Record) Get(ctx context.Context, page, pageSize int, searchQuery string
 		record.ZoneUUID = r.ZoneUUID
 
 		// Get tags for the record
-		tags, err := new(Tag).GetZone(ctx, r.ZoneUUID)
+		tags, err := new(Tag).GetRecord(ctx, record.UUID)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get tags: %w", err)
+			return nil, 0, fmt.Errorf("failed to get tags for record %s: %w", record.UUID, err)
 		}
 		record.Tags = tags
 		records = append(records, record)
