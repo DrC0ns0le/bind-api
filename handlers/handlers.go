@@ -11,6 +11,15 @@ type responseBody struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+type paginationMetadata struct {
+	CurrentPage int  `json:"current_page"`
+	PageSize    int  `json:"page_size"`
+	TotalPages  int  `json:"total_pages"`
+	TotalItems  int  `json:"total_items"`
+	HasNextPage bool `json:"has_next_page"`
+	HasPrevPage bool `json:"has_prev_page"`
+}
+
 func CatchAllHandler(w http.ResponseWriter, r *http.Request) {
 	responseBody := responseBody{
 		Code:    1,

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/DrC0ns0le/bind-api/rdb"
@@ -37,7 +38,22 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract zone UUID from URL
 	zoneUUID := r.PathValue("zone_uuid")
 
-	records, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get(r.Context())
+	// Parse pagination parameters
+	page := 1
+	pageSize := 10 // Default page size
+	if p := r.URL.Query().Get("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 {
+			page = val
+		}
+	}
+	if ps := r.URL.Query().Get("page_size"); ps != "" {
+		if val, err := strconv.Atoi(ps); err == nil && val > 0 {
+			pageSize = val
+		}
+	}
+
+	// Get records with pagination
+	records, total, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get(r.Context(), page, pageSize)
 
 	if err != nil {
 		errorMsg := responseBody{
@@ -74,10 +90,28 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 		R = append(R, temp)
 	}
 
+	// Calculate pagination metadata
+	totalPages := (total + pageSize - 1) / pageSize
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
 	responseBody := responseBody{
 		Code:    0,
 		Message: "Records retrieved successfully",
-		Data:    R,
+		Data: struct {
+			Records    []Record           `json:"records"`
+			Pagination paginationMetadata `json:"pagination"`
+		}{
+			Records: R,
+			Pagination: paginationMetadata{
+				CurrentPage: page,
+				PageSize:    pageSize,
+				TotalPages:  totalPages,
+				TotalItems:  total,
+				HasNextPage: hasNext,
+				HasPrevPage: hasPrev,
+			},
+		},
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responseBody)

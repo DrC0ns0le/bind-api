@@ -24,30 +24,59 @@ type Record struct {
 	Tags       []string     // Record tags
 }
 
-// Get retrieves records from the database based on the provided zone UUID.
+// Get retrieves all records for a given zone with optional pagination.
 //
-// Parameters:
-// - zoneUUID: The UUID of the zone to retrieve records from.
+// It returns a slice of records, the total count of records, and an error if any.
 //
-// Returns:
-//   - []Record: A slice of Record structs representing the retrieved records.
-//   - error: An error if the retrieval fails.
-func (r *Record) Get(ctx context.Context) ([]Record, error) {
+// The records are sorted by creation time in descending order.
+//
+// If page and pageSize are both 0, all records are returned.
+// If page is 0 but pageSize is not, the first pageSize records are returned.
+// If pageSize is 0, page is ignored and all records are returned.
+//
+// The error returned is either a DB error or an error due to iteration.
+func (r *Record) Get(ctx context.Context, page, pageSize int) ([]Record, int, error) {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	rows, err := tx.Query(ctx, `
-        SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging 
-        FROM bind_dns.records AS r 
-        JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid 
-        WHERE z.uuid::text = $1 
-        AND (r.deleted_at IS NULL OR r.staging = TRUE)`,
-		r.ZoneUUID)
+	// Get total count first
+	var total int
+	err = tx.QueryRow(ctx, `
+		SELECT COUNT(*) 
+		FROM bind_dns.records AS r 
+		JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid 
+		WHERE z.uuid::text = $1 
+		AND (r.deleted_at IS NULL OR r.staging = TRUE)`,
+		r.ZoneUUID).Scan(&total)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
+		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	// Build the query based on pagination parameters
+	query := `
+		SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging 
+		FROM bind_dns.records AS r 
+		JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid 
+		WHERE z.uuid::text = $1 
+		AND (r.deleted_at IS NULL OR r.staging = TRUE)
+		ORDER BY r.created_at DESC`
+
+	var args []interface{}
+	args = append(args, r.ZoneUUID)
+
+	// Only add LIMIT and OFFSET if pagination is requested
+	if page > 0 && pageSize > 0 {
+		query += ` LIMIT $2 OFFSET $3`
+		offset := (page - 1) * pageSize
+		args = append(args, pageSize, offset)
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -66,7 +95,7 @@ func (r *Record) Get(ctx context.Context) ([]Record, error) {
 			&record.DeletedAt,
 			&record.Staging,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan record: %w", err)
+			return nil, 0, fmt.Errorf("failed to scan record: %w", err)
 		}
 
 		record.ZoneUUID = r.ZoneUUID
@@ -74,7 +103,7 @@ func (r *Record) Get(ctx context.Context) ([]Record, error) {
 		// Get tags for the record
 		tags, err := new(Tag).GetZone(ctx, r.ZoneUUID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get tags: %w", err)
+			return nil, 0, fmt.Errorf("failed to get tags: %w", err)
 		}
 		record.Tags = tags
 
@@ -83,10 +112,10 @@ func (r *Record) Get(ctx context.Context) ([]Record, error) {
 
 	// Check for errors that occurred during iteration
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during row iteration: %w", err)
+		return nil, 0, fmt.Errorf("error during row iteration: %w", err)
 	}
 
-	return records, nil
+	return records, total, nil
 }
 
 // GetAll retrieves all records from the database.
