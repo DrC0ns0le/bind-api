@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,56 +25,139 @@ type Record struct {
 	Tags       []string     // Record tags
 }
 
-// Get retrieves all records for a given zone with optional pagination.
+// Get retrieves a list of records from the database based on the provided criteria.
 //
-// It returns a slice of records, the total count of records, and an error if any.
+// Parameters:
+//   - ctx: The context for the database operation.
+//   - page: The page number for pagination (1-indexed). If 0, pagination is disabled.
+//   - pageSize: The number of records per page. If 0, pagination is disabled.
+//   - searchQuery: A general search query to filter records across multiple fields.
 //
-// The records are sorted by creation time in descending order.
+// The function applies filters based on the Record struct fields:
+//   - ZoneUUID: Mandatory filter for the zone.
+//   - Type: Optional filter for record type.
+//   - Host: Optional filter for record host.
+//   - Content: Optional filter for record content.
+//   - Tags: Optional filter for record tags.
 //
-// If page and pageSize are both 0, all records are returned.
-// If page is 0 but pageSize is not, the first pageSize records are returned.
-// If pageSize is 0, page is ignored and all records are returned.
+// It also includes non-deleted records or records in staging.
 //
-// The error returned is either a DB error or an error due to iteration.
-func (r *Record) Get(ctx context.Context, page, pageSize int) ([]Record, int, error) {
+// Returns:
+//   - []Record: A slice of Record structs matching the criteria.
+//   - int: The total count of records matching the criteria (before pagination).
+//   - error: An error if any occurred during the operation.
+//
+// The function uses case-insensitive partial matching (ILIKE) for string fields
+// and supports pagination. It orders results by creation date in descending order.
+func (r *Record) Get(ctx context.Context, page, pageSize int, searchQuery string) ([]Record, int, error) {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
+	// Build WHERE conditions and arguments
+	whereConditions := []string{"z.uuid::text = $1"}
+	args := []interface{}{r.ZoneUUID}
+	argCount := 1
+
+	// Add specific field filters
+	if r.Type != "" {
+		argCount++
+		whereConditions = append(whereConditions, fmt.Sprintf("r.type ILIKE $%d", argCount))
+		args = append(args, "%"+r.Type+"%")
+	}
+	if r.Host != "" {
+		argCount++
+		whereConditions = append(whereConditions, fmt.Sprintf("r.host ILIKE $%d", argCount))
+		args = append(args, "%"+r.Host+"%")
+	}
+	if r.Content != "" {
+		argCount++
+		whereConditions = append(whereConditions, fmt.Sprintf("r.content ILIKE $%d", argCount))
+		args = append(args, "%"+r.Content+"%")
+	}
+
+	// Add tags filter if provided and not empty
+	if len(r.Tags) > 0 && r.Tags[0] != "" {
+		tagPlaceholders := make([]string, len(r.Tags))
+		for i := range r.Tags {
+			argCount++
+			tagPlaceholders[i] = fmt.Sprintf("$%d", argCount)
+			args = append(args, r.Tags[i])
+		}
+		whereConditions = append(whereConditions, fmt.Sprintf(`
+            EXISTS (
+                SELECT 1 FROM bind_dns.record_tags rt
+                WHERE rt.record_uuid = r.uuid
+                AND rt.tag IN (%s)
+            )`, strings.Join(tagPlaceholders, ",")))
+	}
+
+	// Add general search query if provided
+	if searchQuery != "" {
+		argCount++
+		searchArg := "%" + searchQuery + "%"
+
+		searchConditions := []string{
+			fmt.Sprintf("r.type ILIKE $%d", argCount),
+			fmt.Sprintf("r.host ILIKE $%d", argCount),
+			fmt.Sprintf("r.content ILIKE $%d", argCount),
+			fmt.Sprintf(`
+                EXISTS (
+                    SELECT 1 FROM bind_dns.record_tags rt
+                    WHERE rt.record_uuid = r.uuid
+                    AND rt.tag ILIKE $%d
+                )`, argCount),
+		}
+
+		// Add the OR conditions as a grouped condition
+		whereConditions = append(whereConditions,
+			fmt.Sprintf("(%s)", strings.Join(searchConditions, " OR ")))
+
+		args = append(args, searchArg)
+	}
+
+	// Add deletion/staging condition
+	whereConditions = append(whereConditions, "(r.deleted_at IS NULL OR r.staging = TRUE)")
+
+	// Combine all conditions
+	whereClause := strings.Join(whereConditions, " AND ")
+
 	// Get total count first
+	countQuery := fmt.Sprintf(`
+        SELECT COUNT(*)
+        FROM bind_dns.records AS r
+        JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid
+        WHERE %s`, whereClause)
+
 	var total int
-	err = tx.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM bind_dns.records AS r 
-		JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid 
-		WHERE z.uuid::text = $1 
-		AND (r.deleted_at IS NULL OR r.staging = TRUE)`,
-		r.ZoneUUID).Scan(&total)
+	err = tx.QueryRow(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
 	}
 
-	// Build the query based on pagination parameters
-	query := `
-		SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr, r.created_at, r.modified_at, r.deleted_at, r.staging 
-		FROM bind_dns.records AS r 
-		JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid 
-		WHERE z.uuid::text = $1 
-		AND (r.deleted_at IS NULL OR r.staging = TRUE)
-		ORDER BY r.created_at DESC`
+	// Build the main query
+	query := fmt.Sprintf(`
+        SELECT r.uuid, r.type, r.host, r.content, r.ttl, r.add_ptr,
+        r.created_at, r.modified_at, r.deleted_at, r.staging
+        FROM bind_dns.records AS r
+        JOIN bind_dns.zones AS z ON r.zone_uuid = z.uuid
+        WHERE %s
+        ORDER BY r.created_at DESC`, whereClause)
 
-	var args []interface{}
-	args = append(args, r.ZoneUUID)
-
-	// Only add LIMIT and OFFSET if pagination is requested
+	// Add pagination if requested
 	if page > 0 && pageSize > 0 {
-		query += ` LIMIT $2 OFFSET $3`
+		argCount++
+		query += fmt.Sprintf(" LIMIT $%d", argCount)
+		args = append(args, pageSize)
+		argCount++
 		offset := (page - 1) * pageSize
-		args = append(args, pageSize, offset)
+		query += fmt.Sprintf(" OFFSET $%d", argCount)
+		args = append(args, offset)
 	}
 
+	// Execute the query
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to execute query: %w", err)
@@ -97,7 +181,6 @@ func (r *Record) Get(ctx context.Context, page, pageSize int) ([]Record, int, er
 		); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan record: %w", err)
 		}
-
 		record.ZoneUUID = r.ZoneUUID
 
 		// Get tags for the record
@@ -106,11 +189,10 @@ func (r *Record) Get(ctx context.Context, page, pageSize int) ([]Record, int, er
 			return nil, 0, fmt.Errorf("failed to get tags: %w", err)
 		}
 		record.Tags = tags
-
 		records = append(records, record)
 	}
 
-	// Check for errors that occurred during iteration
+	// Check for errors during iteration
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("error during row iteration: %w", err)
 	}

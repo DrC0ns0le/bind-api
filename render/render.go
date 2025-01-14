@@ -73,7 +73,7 @@ func createZones(ctx context.Context) ([]Zone, error) {
 	}
 
 	for _, z := range zs {
-		rs, _, err := (&rdb.Record{ZoneUUID: z.UUID}).Get(ctx, 0, 0)
+		rs, _, err := (&rdb.Record{ZoneUUID: z.UUID}).Get(ctx, 0, 0, "")
 		if err != nil {
 			return ZS, err
 		}

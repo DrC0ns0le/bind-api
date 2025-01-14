@@ -40,7 +40,7 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse pagination parameters
 	page := 1
-	pageSize := 10 // Default page size
+	pageSize := 25 // Default page size
 	if p := r.URL.Query().Get("page"); p != "" {
 		if val, err := strconv.Atoi(p); err == nil && val > 0 {
 			page = val
@@ -53,7 +53,13 @@ func GetZoneRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get records with pagination
-	records, total, err := (&rdb.Record{ZoneUUID: zoneUUID}).Get(r.Context(), page, pageSize)
+	records, total, err := (&rdb.Record{
+		ZoneUUID: zoneUUID,
+		Type:     r.URL.Query().Get("type"),
+		Host:     r.URL.Query().Get("host"),
+		Content:  r.URL.Query().Get("content"),
+		Tags:     strings.Split(r.URL.Query().Get("tags"), ","),
+	}).Get(r.Context(), page, pageSize, r.URL.Query().Get("search"))
 
 	if err != nil {
 		errorMsg := responseBody{
