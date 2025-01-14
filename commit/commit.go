@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/go-git/go-git/config"
+	"github.com/go-git/go-git/plumbing"
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -73,19 +75,19 @@ func Push() error {
 	// open repo
 	r, err := git.PlainOpen(directory)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to open repository: %w", err)
 	}
 
 	// get worktree
 	w, err := r.Worktree()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to get worktree: %w", err)
 	}
 
 	// git add .
 	_, err = w.Add(".")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add files to repository: %w", err)
 	}
 
 	// git commit -m \"message\"
@@ -103,7 +105,7 @@ func Push() error {
 
 	_, err = r.CommitObject(commit)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to commit repository: %w", err)
 	}
 
 	err = r.Push(&git.PushOptions{
@@ -111,7 +113,7 @@ func Push() error {
 		Auth:       authMethod,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to push repository: %w", err)
 	}
 
 	return nil
@@ -121,26 +123,51 @@ func Push() error {
 func Reset() error {
 	r, err := git.PlainOpen(directory)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open repository: %w", err)
 	}
 
 	w, err := r.Worktree()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get worktree: %w", err)
 	}
 
-	// Hard reset to remove all local changes before pulling
+	// Get the default remote
+	remote, err := r.Remote("origin")
+	if err != nil {
+		return fmt.Errorf("failed to get remote: %w", err)
+	}
+
+	// Fetch latest changes first
+	err = remote.Fetch(&git.FetchOptions{
+		Auth:     authMethod,
+		Force:    true,
+		RefSpecs: []config.RefSpec{"refs/*:refs/*"},
+	})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("failed to fetch: %w", err)
+	}
+
+	// Hard reset to remove all local changes
 	err = w.Reset(&git.ResetOptions{
 		Mode: git.HardReset,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to reset repository: %w", err)
 	}
 
-	// Pull latest changes
-	err = w.Pull(&git.PullOptions{RemoteName: "origin", Auth: authMethod, Force: true})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return err
+	// Get current branch reference
+	ref, err := r.Head()
+	if err != nil {
+		return fmt.Errorf("failed to get HEAD reference: %w", err)
+	}
+
+	// Reset to remote branch
+	err = w.Reset(&git.ResetOptions{
+		Mode:   git.HardReset,
+		Commit: plumbing.NewHash("origin/" + ref.Name().Short()),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reset to remote: %w", err)
 	}
 
 	return nil
@@ -150,16 +177,16 @@ func Reset() error {
 func Staging() (bool, error) {
 	r, err := git.PlainOpen(directory)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to open repository: %w", err)
 	}
 	w, err := r.Worktree()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
 	status, err := w.Status()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to get status: %w", err)
 	}
 
 	if len(status) > 0 {
