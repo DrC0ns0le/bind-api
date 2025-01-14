@@ -129,17 +129,17 @@ func Reset() error {
 		return err
 	}
 
-	// Pull latest changes
-	err = w.Pull(&git.PullOptions{RemoteName: "origin", Auth: authMethod, Force: true})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return err
-	}
-
-	// Hard reset to remove all local changes
+	// Hard reset to remove all local changes before pulling
 	err = w.Reset(&git.ResetOptions{
 		Mode: git.HardReset,
 	})
 	if err != nil {
+		return err
+	}
+
+	// Pull latest changes
+	err = w.Pull(&git.PullOptions{RemoteName: "origin", Auth: authMethod, Force: true})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return err
 	}
 
