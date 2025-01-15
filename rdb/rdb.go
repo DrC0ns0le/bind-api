@@ -2,18 +2,29 @@ package rdb
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/DrC0ns0le/bind-api/config"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	dbPort     = flag.String("db.port", "5432", "database port, env: DB_PORT")
+	dbAddr     = flag.String("db.addr", "127.0.0.1", "database address, env: DB_ADDR")
+	dbUser     = flag.String("db.user", "postgres", "database user, env: DB_USER")
+	dbPass     = flag.String("db.pass", "", "database password, env: DB_PASS")
+	dbName     = flag.String("db.table", "bind_dns", "database name, env: DB_NAME")
+	dbMaxConns = flag.Int("db.max_conns", 10, "database max connections, env: DB_MAX_CONNS")
+	dbMinConns = flag.Int("db.min_conns", 5, "database min connections, env: DB_MIN_CONNS")
 )
 
 var db *pgxpool.Pool
 
 type DBConfig struct {
 	Host        string
-	Port        int
+	Port        string
 	User        string
 	Password    string
 	DBName      string
@@ -23,23 +34,32 @@ type DBConfig struct {
 	MaxConnLife time.Duration
 }
 
-func Init(config DBConfig) {
+func Init() error {
 	ctx := context.Background()
 	// Connect to the database
-	if err := connect(ctx, config); err != nil {
-		log.Fatal(err)
+	if err := connect(ctx, DBConfig{
+		Host:     config.GetEnv("DB_ADDR", *dbAddr),
+		Port:     config.GetEnv("DB_PORT", *dbPort),
+		User:     config.GetEnv("DB_USER", *dbUser),
+		Password: config.GetEnv("DB_PASS", *dbPass),
+		DBName:   config.GetEnv("DB_NAME", *dbName),
+		MaxConns: int32(config.GetEnvInt("DB_MAX_CONNS", *dbMaxConns)),
+		MinConns: int32(config.GetEnvInt("DB_MIN_CONNS", *dbMinConns)),
+	}); err != nil {
+		return fmt.Errorf("error connecting to the database: %w", err)
 	}
 
 	// Test the connection
 	if err := db.Ping(ctx); err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("error pinging the database: %w", err)
 	}
-	log.Printf("Connected to the database successfully.\n")
+
+	return nil
 }
 
 // Connect establishes a connection pool to the database
 func connect(ctx context.Context, config DBConfig) error {
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		config.User, config.Password, config.Host, config.Port, config.DBName)
 
 	poolConfig, err := pgxpool.ParseConfig(connString)

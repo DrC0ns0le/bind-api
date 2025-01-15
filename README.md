@@ -3,13 +3,16 @@
 ## Overview
 This is a simple DNS management service built for managing BIND DNS server configuration files. It provides a RESTful API for creating, updating, and deleting DNS zones and records. The goal is to simplify the management of DNS configuration files by automatically generating the necessary configuration files. It also includes a staging system for previewing the configuration file changes before deployment, and version control via Git for tracking changes. This project also helps in automating the deployment process using Ansible.
 
+If you are looking for a web interface, there is an accompanying [Frontend](https://github.com/DrC0ns0le/bind-frontend) that can be used in conjunction with this API.
+
 ## Key Features
 
 ### DNS Zone Management
-- Complete CRUD operations for DNS zones
+- Complete CRUD operations for DNS zones(GET, POST, PUT, PATCH, DELETE)
 - Per-zone configuration management
 
 ### DNS Record Management
+- Complete CRUD operations for DNS records(GET, POST, PUT, PATCH, DELETE)
 - Support for all DNS record types
 - Bulk record operations
 - Advanced filtering and search capabilities
@@ -33,11 +36,12 @@ This is a simple DNS management service built for managing BIND DNS server confi
 
 ### Additional Features
 - RESTful API design
+- UUID-based resource identifiers
 - Middleware support(CORS, logging etc)
 - Soft deletion for all resources
 - Configuration via environment variables or flags
-- Support for containerization & deployment with Kubernetes
-- Uses DB transactions for atomic operations
+- Built for containerization & deployment with Kubernetes
+- DB transactions for atomic operations
 
 ## To-Do
 - Add input validation
@@ -45,6 +49,7 @@ This is a simple DNS management service built for managing BIND DNS server confi
 - Add configuration parse/validation
 - Expand on middleware(ie, authentication, metrics etc)
 - Write tests
+- Generation of BIND configuration files beyond zone files
 - Add more documentation(API usage, configuration etc)
 - Add special tags for automated direct deployments, skipping staging(for purposes of DDNS)
 

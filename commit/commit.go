@@ -1,11 +1,13 @@
 package commit
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
+	conf "github.com/DrC0ns0le/bind-api/config"
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -16,17 +18,21 @@ import (
 )
 
 const (
-	sshUrl    = "git@github.com:DrC0ns0le/internal-bind-config.git"
-	httpUrl   = "https://github.com/DrC0ns0le/internal-bind-config.git"
 	directory = "output"
 )
 
 var (
-	authMethod transport.AuthMethod
-	url        string
+	token       = flag.String("git.token", "", "git token, env: GIT_TOKEN")
+	url         = flag.String("git.url", "", "git url, env: GIT_URL")
+	commitName  = flag.String("git.name", "", "commit name, env: GIT_NAME")
+	commitEmail = flag.String("git.email", "", "commit email, env: GIT_EMAIL")
 )
 
-func Init(token string) error {
+var (
+	authMethod transport.AuthMethod
+)
+
+func Init() error {
 	// check if directory exists
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
 		if err := os.MkdirAll(directory, 0755); err != nil {
@@ -35,26 +41,25 @@ func Init(token string) error {
 	}
 
 	// set up authentication
-	if token != "" {
+	*token = conf.GetEnv("GIT_TOKEN", *token)
+	if *token != "" {
 		authMethod = &http.BasicAuth{
 			Username: "token",
-			Password: token,
+			Password: *token,
 		}
-		url = httpUrl
 	} else {
 		var err error
 		authMethod, err = ssh.NewSSHAgentAuth("git")
 		if err != nil {
 			return fmt.Errorf("failed to setup SSH auth: %w", err)
 		}
-		url = sshUrl
 	}
 
 	// check if git is already cloned
 	if _, err := os.Stat(directory + "/.git"); os.IsNotExist(err) {
 		_, err = git.PlainClone(directory, false, &git.CloneOptions{
 			Auth: authMethod,
-			URL:  url,
+			URL:  conf.GetEnv("GIT_URL", *url),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to clone repository: %w", err)
@@ -94,8 +99,8 @@ func Push() error {
 	commitMsg := fmt.Sprintf("api commit at %s", time.Now().Format(time.RFC3339))
 	commit, err := w.Commit(commitMsg, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  "Bind Bot",
-			Email: "bind.bot@leejacksonz.com",
+			Name:  conf.GetEnv("GIT_NAME", *commitName),
+			Email: conf.GetEnv("GIT_EMAIL", *commitEmail),
 			When:  time.Now(),
 		},
 	})
