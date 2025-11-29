@@ -126,6 +126,8 @@ func GetZoneHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	// Parse request body
 	var requestData struct {
 		Name string `json:"name"`
@@ -143,12 +145,43 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check name is not empty
-	if requestData.Name == "" {
+	// Validate zone name
+	var validationErrors ValidationErrors
+	validationErrors = append(validationErrors, ValidateZoneName(requestData.Name)...)
+
+	// Set defaults for SOA if not provided
+	if requestData.SOA.Refresh == 0 {
+		requestData.SOA.Refresh = 3600
+	}
+	if requestData.SOA.Retry == 0 {
+		requestData.SOA.Retry = 600
+	}
+	if requestData.SOA.Expire == 0 {
+		requestData.SOA.Expire = 604800
+	}
+	if requestData.SOA.Minimum == 0 {
+		requestData.SOA.Minimum = 3600
+	}
+	if requestData.SOA.TTL == 0 {
+		requestData.SOA.TTL = 3600
+	}
+
+	// Validate SOA fields
+	validationErrors = append(validationErrors, ValidateSOA(
+		requestData.SOA.PrimaryNS,
+		requestData.SOA.AdminEmail,
+		requestData.SOA.Refresh,
+		requestData.SOA.Retry,
+		requestData.SOA.Expire,
+		requestData.SOA.Minimum,
+		requestData.SOA.TTL,
+	)...)
+
+	if validationErrors.HasErrors() {
 		errorMsg := responseBody{
 			Code:    2,
-			Message: "Name cannot be empty",
-			Data:    nil,
+			Message: "Validation failed",
+			Data:    validationErrors,
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(errorMsg)
@@ -159,26 +192,15 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	uuid5 := uuid.NewSHA1(dnsNamespaceUUID, []byte(requestData.Name)).String()
 
 	// Check if the zone already exists
-	if err := (&rdb.Zone{UUID: uuid5}).Find(r.Context()); err != nil {
-		if err == sql.ErrNoRows {
-			errorMsg := responseBody{
-				Code:    2,
-				Message: "Zone already exists",
-				Data:    nil,
-			}
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(errorMsg)
-			return
-		} else {
-			errorMsg := responseBody{
-				Code:    3,
-				Message: "Error checking if zone exists",
-				Data:    err.Error(),
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(errorMsg)
-			return
+	if err := (&rdb.Zone{UUID: uuid5}).Find(r.Context()); err == nil {
+		errorMsg := responseBody{
+			Code:    3,
+			Message: "Zone already exists",
+			Data:    nil,
 		}
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
 	}
 
 	newZone := rdb.Zone{
@@ -197,14 +219,24 @@ func CreateZoneHandler(w http.ResponseWriter, r *http.Request) {
 	// Create the zone
 	err = newZone.Create(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		errorMsg := responseBody{
+			Code:    4,
+			Message: "Failed to create zone",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
 
 	// Respond with the created zone
-	w.Header().Set("Content-Type", "application/json")
+	responseBody := responseBody{
+		Code:    0,
+		Message: "Zone created successfully",
+		Data:    newZone,
+	}
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newZone)
+	json.NewEncoder(w).Encode(responseBody)
 }
 
 func UpdateZoneHandler(w http.ResponseWriter, r *http.Request) {

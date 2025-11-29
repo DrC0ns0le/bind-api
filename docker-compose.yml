@@ -1,13 +1,14 @@
 services:
   bind:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    image: registry.internal.leejacksonz.com/bind-api:origin-master-49149fe
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: registry.internal.leejacksonz.com/bind-api:latest
     ports:
       - ${LISTEN_PORT}:${LISTEN_PORT}
     env_file:
       - .env
     volumes:
+      - ./:/app
       - ./ansible/inventory.ini:/app/ansible/inventory.ini
     restart: always

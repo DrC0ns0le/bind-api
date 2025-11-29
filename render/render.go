@@ -142,6 +142,12 @@ func createZones(ctx context.Context) ([]Zone, error) {
 		ZS = append(ZS, Z)
 	}
 
+	// Fetch reverse DNS SOA config from database
+	rdnsSOA, err := getRdnsSOAConfig(ctx)
+	if err != nil {
+		return ZS, fmt.Errorf("failed to get rdns SOA config: %w", err)
+	}
+
 	for arpaZone, rs := range rDNS {
 		var rRS []Record
 		for _, r := range rs {
@@ -166,28 +172,80 @@ func createZones(ctx context.Context) ([]Zone, error) {
 			Name:    arpaZone,
 			Records: rRS,
 			SOA: SOA{
-				// PrimaryNS:  _bd.Configs.PrimaryNS,
-				// AdminEmail: _bd.Configs.AdminEmail,
-				// Refresh:    _bd.Configs.Refresh,
-				// Retry:      _bd.Configs.Retry,
-				// Expire:     _bd.Configs.Expire,
-				// Minimum:    _bd.Configs.Minimum,
-				// TTL:        _bd.Configs.TTL,
-
-				// Hardcoded for now
-				PrimaryNS:  "ns.arpa.leejacksonz.com",
-				AdminEmail: "admin.leejacksonz.com",
+				PrimaryNS:  rdnsSOA.PrimaryNS,
+				AdminEmail: rdnsSOA.AdminEmail,
 				Serial:     uint64(time.Now().Unix()),
-				Refresh:    1800,
-				Retry:      1800,
-				Expire:     604800,
-				Minimum:    1800,
-				TTL:        3600,
+				Refresh:    rdnsSOA.Refresh,
+				Retry:      rdnsSOA.Retry,
+				Expire:     rdnsSOA.Expire,
+				Minimum:    rdnsSOA.Minimum,
+				TTL:        rdnsSOA.TTL,
 			},
 		})
 	}
 
 	return ZS, nil
+}
+
+// getRdnsSOAConfig fetches reverse DNS SOA configuration from the database
+func getRdnsSOAConfig(ctx context.Context) (SOA, error) {
+	// Default values
+	soa := SOA{
+		PrimaryNS:  "ns.example.com",
+		AdminEmail: "admin.example.com",
+		Refresh:    1800,
+		Retry:      1800,
+		Expire:     604800,
+		Minimum:    1800,
+		TTL:        3600,
+	}
+
+	// Fetch configs from database
+	configs, err := (&rdb.Config{}).Get(ctx)
+	if err != nil {
+		return soa, err
+	}
+
+	// Build a map for easy lookup
+	configMap := make(map[string]string)
+	for _, c := range configs {
+		configMap[c.ConfigKey] = c.ConfigValue
+	}
+
+	// Override defaults with DB values
+	if v, ok := configMap["rdns_primary_ns"]; ok {
+		soa.PrimaryNS = v
+	}
+	if v, ok := configMap["rdns_admin_email"]; ok {
+		soa.AdminEmail = v
+	}
+	if v, ok := configMap["rdns_refresh"]; ok {
+		if val, err := strconv.ParseUint(v, 10, 16); err == nil {
+			soa.Refresh = uint16(val)
+		}
+	}
+	if v, ok := configMap["rdns_retry"]; ok {
+		if val, err := strconv.ParseUint(v, 10, 16); err == nil {
+			soa.Retry = uint16(val)
+		}
+	}
+	if v, ok := configMap["rdns_expire"]; ok {
+		if val, err := strconv.ParseUint(v, 10, 32); err == nil {
+			soa.Expire = uint32(val)
+		}
+	}
+	if v, ok := configMap["rdns_minimum"]; ok {
+		if val, err := strconv.ParseUint(v, 10, 16); err == nil {
+			soa.Minimum = uint16(val)
+		}
+	}
+	if v, ok := configMap["rdns_ttl"]; ok {
+		if val, err := strconv.ParseUint(v, 10, 16); err == nil {
+			soa.TTL = uint16(val)
+		}
+	}
+
+	return soa, nil
 }
 
 func reverseIPv4(s string) string {

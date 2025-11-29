@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -204,25 +205,38 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		Tags    []string `json:"tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	var missingFields []string
-	if requestData.Type == "" {
-		missingFields = append(missingFields, "type")
-	} else if requestData.Host == "" {
-		missingFields = append(missingFields, "host")
-	} else if requestData.Content == "" {
-		missingFields = append(missingFields, "content")
-	}
-
-	if len(missingFields) > 0 {
 		errorMsg := responseBody{
 			Code:    2,
-			Message: "Missing fields",
-			Data: map[string]string{
-				"missing_fields": strings.Join(missingFields, ", "),
-			},
+			Message: "Invalid request body",
+			Data:    err.Error(),
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
+	// Normalize record type to uppercase
+	requestData.Type = strings.ToUpper(requestData.Type)
+
+	// Set default TTL if not provided
+	if requestData.TTL == 0 {
+		requestData.TTL = 3600
+	}
+
+	// Validate record fields
+	validationErrors := ValidateRecord(
+		requestData.Type,
+		requestData.Host,
+		requestData.Content,
+		requestData.TTL,
+		requestData.AddPTR,
+	)
+
+	if validationErrors.HasErrors() {
+		errorMsg := responseBody{
+			Code:    3,
+			Message: "Validation failed",
+			Data:    validationErrors,
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(errorMsg)
@@ -230,16 +244,11 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newRecord := rdb.Record{
-		UUID:    uuid.New().String(),
-		Type:    requestData.Type,
-		Host:    requestData.Host,
-		Content: requestData.Content,
-		TTL: func() uint16 {
-			if requestData.TTL == 0 {
-				return 3600
-			}
-			return requestData.TTL
-		}(),
+		UUID:     uuid.New().String(),
+		Type:     requestData.Type,
+		Host:     requestData.Host,
+		Content:  requestData.Content,
+		TTL:      requestData.TTL,
 		AddPTR:   requestData.AddPTR,
 		ZoneUUID: zone.UUID,
 		Staging:  true,
@@ -249,16 +258,16 @@ func CreateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	// Create the record
 	if err := newRecord.Create(r.Context()); err != nil {
 		errorMsg := responseBody{
-			Code:    3,
-			Message: "Faild to create record in database",
+			Code:    4,
+			Message: "Failed to create record in database",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
 
-	// Respond with the created zone
+	// Respond with the created record
 	responseBody := responseBody{
 		Code:    0,
 		Message: "Record created successfully",
@@ -320,7 +329,7 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 	// Update record fields if provided in request
 	needUpdate := false
 	if requestData.Type != nil {
-		record.Type = *requestData.Type
+		record.Type = strings.ToUpper(*requestData.Type)
 		needUpdate = true
 	}
 	if requestData.Host != nil {
@@ -356,14 +365,34 @@ func UpdateRecordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate updated record fields
+	validationErrors := ValidateRecord(
+		record.Type,
+		record.Host,
+		record.Content,
+		record.TTL,
+		record.AddPTR,
+	)
+
+	if validationErrors.HasErrors() {
+		errorMsg := responseBody{
+			Code:    5,
+			Message: "Validation failed",
+			Data:    validationErrors,
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorMsg)
+		return
+	}
+
 	// Update the record
 	if err := record.Update(r.Context()); err != nil {
 		errorMsg := responseBody{
-			Code:    3,
+			Code:    6,
 			Message: "Failed to update record in database",
 			Data:    err.Error(),
 		}
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMsg)
 		return
 	}
@@ -430,3 +459,26 @@ func DeleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(successMsg)
 
 }
+
+// GetSupportedRecordTypesHandler returns all supported DNS record types
+func GetSupportedRecordTypesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	types := make([]string, 0, len(supportedRecordTypes))
+	for t := range supportedRecordTypes {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+
+	response := responseBody{
+		Code:    0,
+		Message: "Supported record types retrieved successfully",
+		Data: map[string][]string{
+			"types": types,
+		},
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
