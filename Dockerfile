@@ -1,26 +1,35 @@
+# syntax=docker/dockerfile:1.4
+
 # Stage 1: Build the Go application
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Copy only necessary files for building, avoiding unnecessary rebuilds
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Copy go module files first for better caching
 COPY go.mod go.sum ./
-RUN go mod download
+
+# Download dependencies with cache mount for faster rebuilds
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
 # Copy the rest of the source code
 COPY . .
 
-# Download dependencies
-RUN go mod download
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+# Build with cache mounts and optimized flags
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o main .
 
 
 # Stage 2: Final minimal image
 FROM alpine:latest AS final
 
-RUN apk add --no-cache ansible openssh-client sshpass && \
+# Install runtime dependencies
+RUN apk add --no-cache ansible openssh-client sshpass ca-certificates && \
     rm -rf /root/.cache /var/cache/apk/*
 
 WORKDIR /app/

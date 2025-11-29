@@ -1,15 +1,20 @@
+# syntax=docker/dockerfile:1.4
+
 FROM golang:1.25-alpine
 
 # Set workdir
 WORKDIR /app
 
-# Install any build/runtime deps you normally need here
-# (add apk packages if your main Dockerfile uses them)
-RUN apk add --no-cache ansible openssh-client sshpass && rm -rf /root/.cache /var/cache/apk/*
+# Install runtime dependencies
+RUN apk add --no-cache ansible openssh-client sshpass git ca-certificates && \
+    rm -rf /root/.cache /var/cache/apk/*
 
-# Copy go module files first (for better caching when you do rebuild)
+# Copy go module files first for better caching
 COPY go.mod go.sum ./
-RUN go mod download
+
+# Download dependencies with cache mount
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Source code will be mounted at runtime via docker-compose
 

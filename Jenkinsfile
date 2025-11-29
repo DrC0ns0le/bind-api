@@ -1,7 +1,7 @@
 pipeline {
     agent {
         kubernetes {
-            yamlFile 'kaniko-builder.yml'
+            yamlFile 'buildkit-builder.yml'
         }
     }
 
@@ -10,27 +10,103 @@ pipeline {
         DOCKER_IMAGE = "bind-api"
         GIT_BRANCH_NAME = "${env.GIT_BRANCH.replaceAll('^origin/', '')}"
         DOCKER_TAG = "${GIT_BRANCH_NAME.replaceAll('/', '-')}-${env.GIT_COMMIT.take(7)}"
+
+        // Multi-architecture platforms
+        BUILD_PLATFORMS = "linux/amd64,linux/arm64"
+
+        // Registry credentials (for future use)
+        REGISTRY_CREDENTIALS_ID = "docker-registry-credentials"
     }
+
     stages {
-        stage('Build and Push Docker Image') {
+        stage('Setup Registry Auth') {
             steps {
-                container('kaniko') {
+                container('buildkit') {
                     script {
-                        def kanikoCmd = "/kaniko/executor --context . " +
-                                        "--destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                        
-                        if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
-                            kanikoCmd += " --destination ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                        // Try to setup auth if credentials exist, otherwise skip
+                        try {
+                            withCredentials([usernamePassword(
+                                credentialsId: env.REGISTRY_CREDENTIALS_ID,
+                                usernameVariable: 'REGISTRY_USER',
+                                passwordVariable: 'REGISTRY_PASSWORD'
+                            )]) {
+                                echo "🔐 Registry credentials found, setting up authentication..."
+                                sh '''
+                                    mkdir -p ~/.docker
+                                    cat > ~/.docker/config.json <<EOF
+{
+  "auths": {
+    "${DOCKER_REGISTRY}": {
+      "auth": "$(echo -n ${REGISTRY_USER}:${REGISTRY_PASSWORD} | base64)"
+    }
+  }
+}
+EOF
+                                '''
+                                echo "✅ Authentication configured"
+                            }
+                        } catch (Exception e) {
+                            echo "ℹ️  No registry credentials found (credential ID: ${env.REGISTRY_CREDENTIALS_ID})"
+                            echo "ℹ️  Proceeding without authentication (registry must allow anonymous push)"
                         }
-                        
-                        sh kanikoCmd
+                    }
+                }
+            }
+        }
+
+        stage('Build and Push Multi-Arch Image') {
+            steps {
+                container('buildkit') {
+                    script {
+                        // Build tag list
+                        def tagList = "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
+
+                        // Add latest tag for main/master branches
+                        if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
+                            tagList += ",${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                        }
+
+                        echo "Building multi-arch image (${BUILD_PLATFORMS}):"
+                        tagList.split(',').each { tag ->
+                            echo "  - ${tag}"
+                        }
+
+                        // Build and push using buildctl-daemonless.sh
+                        sh """
+                            buildctl-daemonless.sh build \\
+                                --frontend dockerfile.v0 \\
+                                --local context=. \\
+                                --local dockerfile=. \\
+                                --opt platform=${BUILD_PLATFORMS} \\
+                                --opt filename=Dockerfile \\
+                                --output type=image,\"name=${tagList}\",push=true
+                        """
+
+                        echo "✅ Successfully built and pushed multi-arch images"
                     }
                 }
             }
         }
     }
+
     post {
+        success {
+            echo "✅ Build completed successfully!"
+            echo "Images available at:"
+            echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
+            if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
+                echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+            }
+            echo "Architectures: ${BUILD_PLATFORMS}"
+        }
+        failure {
+            echo "❌ Build failed. Check BuildKit logs above."
+        }
         always {
+            container('buildkit') {
+                // Clean up credentials if they were created
+                sh 'rm -f ~/.docker/config.json'
+            }
             cleanWs()
         }
     }

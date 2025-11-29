@@ -1,0 +1,50 @@
+kind: Pod
+metadata:
+  labels:
+    jenkins: agent
+spec:
+  containers:
+  - name: buildkit
+    # Use rootless image for security
+    image: moby/buildkit:rootless
+    imagePullPolicy: Always
+
+    # Keep container alive for Jenkins to execute commands
+    command:
+      - sleep
+    args:
+      - "9999999"
+
+    # Run as non-root user (rootless mode)
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      # Required for rootless BuildKit
+      capabilities:
+        add:
+          - SETUID
+          - SETGID
+
+    # Environment for BuildKit
+    env:
+      # Disable process sandbox for rootless in Kubernetes
+      # (See: https://github.com/moby/buildkit/blob/master/docs/rootless.md)
+      - name: BUILDKITD_FLAGS
+        value: "--oci-worker-no-process-sandbox"
+
+    # Volume mounts for Docker config (registry auth)
+    volumeMounts:
+      - name: docker-config
+        mountPath: /home/user/.docker
+        readOnly: false
+
+  volumes:
+    # Docker registry credentials (initially empty, future: Jenkins secret)
+    - name: docker-config
+      emptyDir: {}
+      # When registry requires auth, change to:
+      # secret:
+      #   secretName: docker-registry-creds
+      #   items:
+      #     - key: .dockerconfigjson
+      #       path: config.json
