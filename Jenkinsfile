@@ -91,23 +91,37 @@ EOF
 
     post {
         success {
-            echo "✅ Build completed successfully!"
-            echo "Images available at:"
-            echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-            if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
-                echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+            script {
+                echo "✅ Build completed successfully!"
+                echo "Images available at:"
+                echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
+                if (GIT_BRANCH_NAME == 'main' || GIT_BRANCH_NAME == 'master') {
+                    echo "  ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                }
+                echo "Architectures: ${BUILD_PLATFORMS}"
             }
-            echo "Architectures: ${BUILD_PLATFORMS}"
         }
         failure {
             echo "❌ Build failed. Check BuildKit logs above."
         }
         always {
-            container('buildkit') {
+            script {
                 // Clean up credentials if they were created
-                sh 'rm -f ~/.docker/config.json'
+                try {
+                    container('buildkit') {
+                        sh 'rm -f ~/.docker/config.json'
+                    }
+                } catch (Exception e) {
+                    echo "ℹ️  Skipping credential cleanup (container not available)"
+                }
+
+                // Clean workspace
+                try {
+                    cleanWs()
+                } catch (Exception e) {
+                    echo "ℹ️  Skipping workspace cleanup (workspace not available)"
+                }
             }
-            cleanWs()
         }
     }
 }
